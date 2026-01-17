@@ -19,6 +19,7 @@ describe('Stuck Detection', () => {
       lastFileChangeIteration: 10,
     },
     output: [],
+    worktreePath: null,
   };
 
   test('returns null when not stuck', () => {

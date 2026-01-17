@@ -44,6 +44,13 @@ export function Column({ loop, taskTitle }: ColumnProps) {
         <Text color={status.color}>{loop.status}</Text>
       </Box>
 
+      {/* Worktree path */}
+      {loop.worktreePath && (
+        <Box paddingX={1}>
+          <Text dimColor>wt: {loop.worktreePath.split('/').slice(-2).join('/')}</Text>
+        </Box>
+      )}
+
       {/* Divider */}
       <Box paddingX={1}>
         <Text dimColor>{'─'.repeat(28)}</Text>
