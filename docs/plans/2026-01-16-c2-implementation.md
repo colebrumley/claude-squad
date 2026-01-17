@@ -10,6 +10,20 @@
 
 ---
 
+## Risk Mitigations
+
+This plan addresses the following high-priority risks:
+
+| Risk | Mitigation | Task |
+|------|------------|------|
+| **JSON Parsing Fragility** | Multi-strategy parser with retries | Task 3 |
+| **Prompt Engineering Quality** | Prompt testing harness | Task 6A |
+| **Cost Runaway** | Cost tracking + limits | Tasks 2, 5, 13 |
+| **Task Granularity** | Validation in enumerate phase | Task 7 |
+| **Stuck Detection Accuracy** | Configurable thresholds + logging | Task 10 |
+
+---
+
 ## Task 1: Project Scaffolding
 
 **Files:**
@@ -178,6 +192,18 @@ export interface OrchestratorContext {
   decisions: string[];
 }
 
+export interface CostTracking {
+  totalCostUsd: number;
+  phaseCosts: Record<Phase, number>;
+  loopCosts: Record<string, number>; // loopId -> cost
+}
+
+export interface CostLimits {
+  perLoopMaxUsd: number;
+  perPhaseMaxUsd: number;
+  perRunMaxUsd: number;
+}
+
 export interface OrchestratorState {
   // Identity
   runId: string;
@@ -203,6 +229,10 @@ export interface OrchestratorState {
 
   // Context for agents
   context: OrchestratorContext;
+
+  // Cost tracking (Risk #3 mitigation)
+  costs: CostTracking;
+  costLimits: CostLimits;
 
   // Config
   maxLoops: number;
@@ -449,6 +479,264 @@ Expected: All tests pass
 ```bash
 git add -A
 git commit -m "feat: implement state management with Zod validation"
+```
+
+---
+
+## Task 3A: Robust JSON Parser (Risk #2 Mitigation)
+
+**Files:**
+- Create: `src/utils/json-parser.ts`
+- Test: `src/utils/json-parser.test.ts`
+
+**Step 1: Create utils directory**
+
+Run: `mkdir -p src/utils`
+
+**Step 2: Write failing tests for JSON extraction**
+
+Create `src/utils/json-parser.test.ts`:
+```typescript
+import { test, describe } from 'node:test';
+import assert from 'node:assert';
+import { extractJSON, JSONExtractionError } from './json-parser.js';
+
+describe('Robust JSON Parser', () => {
+  test('extracts JSON from markdown code block', () => {
+    const input = `Here's the result:
+\`\`\`json
+{"tasks": [{"id": "1"}]}
+\`\`\`
+Done!`;
+    const result = extractJSON(input, ['tasks']);
+    assert.deepStrictEqual(result, { tasks: [{ id: '1' }] });
+  });
+
+  test('extracts JSON from code block without language tag', () => {
+    const input = `\`\`\`
+{"tasks": []}
+\`\`\``;
+    const result = extractJSON(input, ['tasks']);
+    assert.deepStrictEqual(result, { tasks: [] });
+  });
+
+  test('extracts raw JSON when no code block', () => {
+    const input = `Thinking... {"tasks": [{"id": "1"}]} ...done`;
+    const result = extractJSON(input, ['tasks']);
+    assert.deepStrictEqual(result, { tasks: [{ id: '1' }] });
+  });
+
+  test('handles JSON with nested quotes and escapes', () => {
+    const input = `\`\`\`json
+{"title": "Say \\"hello\\"", "desc": "line1\\nline2"}
+\`\`\``;
+    const result = extractJSON(input, ['title']);
+    assert.strictEqual(result.title, 'Say "hello"');
+  });
+
+  test('extracts last valid JSON when multiple present', () => {
+    const input = `First: {"wrong": true}
+Then: \`\`\`json
+{"tasks": [{"id": "correct"}]}
+\`\`\``;
+    const result = extractJSON(input, ['tasks']);
+    assert.strictEqual(result.tasks[0].id, 'correct');
+  });
+
+  test('throws JSONExtractionError with helpful message', () => {
+    const input = 'No JSON here at all';
+    assert.throws(
+      () => extractJSON(input, ['tasks']),
+      (err: Error) => {
+        assert.ok(err instanceof JSONExtractionError);
+        assert.ok(err.message.includes('No valid JSON found'));
+        assert.ok(err.attempts.length > 0);
+        return true;
+      }
+    );
+  });
+
+  test('validates required keys are present', () => {
+    const input = '{"other": "value"}';
+    assert.throws(
+      () => extractJSON(input, ['tasks']),
+      /Missing required key/
+    );
+  });
+
+  test('repairs common JSON issues', () => {
+    // Trailing comma
+    const input1 = '{"tasks": [{"id": "1"},]}';
+    const result1 = extractJSON(input1, ['tasks']);
+    assert.ok(result1.tasks);
+
+    // Single quotes (common LLM mistake)
+    const input2 = "{'tasks': []}";
+    const result2 = extractJSON(input2, ['tasks']);
+    assert.ok(result2.tasks);
+  });
+});
+```
+
+**Step 3: Run test to verify it fails**
+
+Run: `npm test -- src/utils/json-parser.test.ts`
+Expected: FAIL - module not found
+
+**Step 4: Implement robust JSON parser**
+
+Create `src/utils/json-parser.ts`:
+```typescript
+export class JSONExtractionError extends Error {
+  constructor(
+    message: string,
+    public readonly attempts: Array<{ strategy: string; error: string }>,
+    public readonly rawInput: string
+  ) {
+    super(message);
+    this.name = 'JSONExtractionError';
+  }
+}
+
+interface ExtractionAttempt {
+  strategy: string;
+  error: string;
+}
+
+/**
+ * Extract JSON from LLM output using multiple strategies.
+ * Handles markdown code blocks, raw JSON, and common LLM formatting issues.
+ */
+export function extractJSON<T = unknown>(
+  input: string,
+  requiredKeys: string[] = []
+): T {
+  const attempts: ExtractionAttempt[] = [];
+
+  // Strategy 1: Markdown code block with json tag
+  const jsonBlockMatch = input.match(/```json\s*([\s\S]*?)```/);
+  if (jsonBlockMatch) {
+    try {
+      const result = parseWithRepair(jsonBlockMatch[1].trim());
+      validateKeys(result, requiredKeys);
+      return result as T;
+    } catch (e) {
+      attempts.push({ strategy: 'json code block', error: String(e) });
+    }
+  }
+
+  // Strategy 2: Any markdown code block
+  const anyBlockMatch = input.match(/```\s*([\s\S]*?)```/);
+  if (anyBlockMatch && anyBlockMatch !== jsonBlockMatch) {
+    try {
+      const result = parseWithRepair(anyBlockMatch[1].trim());
+      validateKeys(result, requiredKeys);
+      return result as T;
+    } catch (e) {
+      attempts.push({ strategy: 'generic code block', error: String(e) });
+    }
+  }
+
+  // Strategy 3: Find JSON object in text (greedy match for outermost braces)
+  const objectMatch = input.match(/\{[\s\S]*\}/);
+  if (objectMatch) {
+    try {
+      const result = parseWithRepair(objectMatch[0]);
+      validateKeys(result, requiredKeys);
+      return result as T;
+    } catch (e) {
+      attempts.push({ strategy: 'raw JSON object', error: String(e) });
+    }
+  }
+
+  // Strategy 4: Find JSON array in text
+  const arrayMatch = input.match(/\[[\s\S]*\]/);
+  if (arrayMatch) {
+    try {
+      const result = parseWithRepair(arrayMatch[0]);
+      return result as T;
+    } catch (e) {
+      attempts.push({ strategy: 'raw JSON array', error: String(e) });
+    }
+  }
+
+  throw new JSONExtractionError(
+    `No valid JSON found containing required keys: ${requiredKeys.join(', ')}`,
+    attempts,
+    input.slice(0, 500) // Truncate for error message
+  );
+}
+
+/**
+ * Parse JSON with automatic repair of common LLM mistakes.
+ */
+function parseWithRepair(text: string): unknown {
+  // Try direct parse first
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Continue to repairs
+  }
+
+  let repaired = text;
+
+  // Repair 1: Replace single quotes with double quotes (careful with apostrophes)
+  repaired = repaired.replace(/'/g, '"');
+
+  // Repair 2: Remove trailing commas before } or ]
+  repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
+
+  // Repair 3: Add missing quotes around unquoted keys
+  repaired = repaired.replace(/(\{|\,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+
+  // Repair 4: Handle undefined/null written as literals
+  repaired = repaired.replace(/:\s*undefined\b/g, ': null');
+
+  try {
+    return JSON.parse(repaired);
+  } catch (e) {
+    throw new Error(`JSON parse failed after repairs: ${e}`);
+  }
+}
+
+function validateKeys(obj: unknown, requiredKeys: string[]): void {
+  if (typeof obj !== 'object' || obj === null) {
+    throw new Error('Parsed result is not an object');
+  }
+
+  for (const key of requiredKeys) {
+    if (!(key in obj)) {
+      throw new Error(`Missing required key: ${key}`);
+    }
+  }
+}
+
+/**
+ * Helper to create a retry prompt when JSON extraction fails.
+ */
+export function createRetryPrompt(error: JSONExtractionError): string {
+  return `Your previous response could not be parsed as valid JSON.
+
+Error: ${error.message}
+
+Attempted strategies:
+${error.attempts.map(a => `- ${a.strategy}: ${a.error}`).join('\n')}
+
+Please respond with ONLY a valid JSON object. Do not include any text before or after the JSON.
+The JSON must contain these keys: ${error.message.match(/required keys: (.+)/)?.[1] || 'unknown'}`;
+}
+```
+
+**Step 5: Run tests to verify they pass**
+
+Run: `npm test -- src/utils/json-parser.test.ts`
+Expected: All tests pass
+
+**Step 6: Commit**
+
+```bash
+git add -A
+git commit -m "feat: add robust JSON parser with multi-strategy extraction and repair"
 ```
 
 ---
@@ -733,6 +1021,13 @@ export interface EffortConfig {
   reviewInterval: number; // Review every N iterations in build loops
   reviewDepth: 'shallow' | 'standard' | 'deep' | 'comprehensive';
   stuckThreshold: number; // Same error count before flagging stuck
+
+  // Cost limits (Risk #3 mitigation)
+  costLimits: {
+    perLoopMaxUsd: number;
+    perPhaseMaxUsd: number;
+    perRunMaxUsd: number;
+  };
 }
 
 const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
@@ -742,6 +1037,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     reviewInterval: 10,
     reviewDepth: 'shallow',
     stuckThreshold: 5,
+    costLimits: { perLoopMaxUsd: 1.0, perPhaseMaxUsd: 2.0, perRunMaxUsd: 5.0 },
   },
   medium: {
     reviewAfterEnumerate: false,
@@ -749,6 +1045,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     reviewInterval: 5,
     reviewDepth: 'standard',
     stuckThreshold: 4,
+    costLimits: { perLoopMaxUsd: 2.0, perPhaseMaxUsd: 5.0, perRunMaxUsd: 15.0 },
   },
   high: {
     reviewAfterEnumerate: true,
@@ -756,6 +1053,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     reviewInterval: 3,
     reviewDepth: 'deep',
     stuckThreshold: 3,
+    costLimits: { perLoopMaxUsd: 5.0, perPhaseMaxUsd: 10.0, perRunMaxUsd: 30.0 },
   },
   max: {
     reviewAfterEnumerate: true,
@@ -763,6 +1061,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     reviewInterval: 1,
     reviewDepth: 'comprehensive',
     stuckThreshold: 2,
+    costLimits: { perLoopMaxUsd: 10.0, perPhaseMaxUsd: 25.0, perRunMaxUsd: 100.0 },
   },
 };
 
@@ -961,6 +1260,218 @@ git commit -m "feat: add agent configuration and prompts"
 
 ---
 
+## Task 6A: Prompt Testing Harness (Risk #1 Mitigation)
+
+**Files:**
+- Create: `src/testing/prompt-harness.ts`
+- Create: `scripts/test-prompts.ts`
+
+**Purpose:** Before relying on prompts in production, validate they produce consistent, parseable output.
+
+**Step 1: Create testing directory**
+
+Run: `mkdir -p src/testing scripts`
+
+**Step 2: Create prompt testing harness**
+
+Create `src/testing/prompt-harness.ts`:
+```typescript
+import { query } from '@anthropic-ai/claude-agent-sdk';
+import { extractJSON, JSONExtractionError } from '../utils/json-parser.js';
+
+export interface PromptTestResult {
+  promptName: string;
+  runs: number;
+  successRate: number;
+  avgCostUsd: number;
+  failures: Array<{
+    run: number;
+    error: string;
+    rawOutput: string;
+  }>;
+  samples: Array<{
+    run: number;
+    output: unknown;
+    costUsd: number;
+  }>;
+}
+
+export interface PromptTestConfig {
+  prompt: string;
+  requiredKeys: string[];
+  runs: number;
+  allowedTools?: string[];
+  maxTurns?: number;
+}
+
+/**
+ * Run a prompt multiple times and measure success rate.
+ * Use this to validate prompts before deploying.
+ */
+export async function testPrompt(
+  name: string,
+  config: PromptTestConfig
+): Promise<PromptTestResult> {
+  const result: PromptTestResult = {
+    promptName: name,
+    runs: config.runs,
+    successRate: 0,
+    avgCostUsd: 0,
+    failures: [],
+    samples: [],
+  };
+
+  let successCount = 0;
+  let totalCost = 0;
+
+  for (let run = 1; run <= config.runs; run++) {
+    let fullOutput = '';
+    let costUsd = 0;
+
+    try {
+      for await (const message of query({
+        prompt: config.prompt,
+        options: {
+          allowedTools: config.allowedTools || ['Read', 'Glob'],
+          permissionMode: 'bypassPermissions',
+          maxTurns: config.maxTurns || 10,
+        },
+      })) {
+        if (message.type === 'assistant' && message.message?.content) {
+          for (const block of message.message.content) {
+            if ('text' in block) {
+              fullOutput += block.text;
+            }
+          }
+        }
+        if (message.type === 'result') {
+          costUsd = message.total_cost_usd || 0;
+        }
+      }
+
+      // Try to extract JSON
+      const parsed = extractJSON(fullOutput, config.requiredKeys);
+      successCount++;
+      totalCost += costUsd;
+
+      result.samples.push({
+        run,
+        output: parsed,
+        costUsd,
+      });
+    } catch (error) {
+      result.failures.push({
+        run,
+        error: error instanceof Error ? error.message : String(error),
+        rawOutput: fullOutput.slice(0, 500),
+      });
+    }
+  }
+
+  result.successRate = successCount / config.runs;
+  result.avgCostUsd = totalCost / Math.max(successCount, 1);
+
+  return result;
+}
+
+export function printTestReport(result: PromptTestResult): void {
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`Prompt: ${result.promptName}`);
+  console.log(`${'='.repeat(60)}`);
+  console.log(`Runs: ${result.runs}`);
+  console.log(`Success Rate: ${(result.successRate * 100).toFixed(1)}%`);
+  console.log(`Avg Cost: $${result.avgCostUsd.toFixed(4)}`);
+
+  if (result.failures.length > 0) {
+    console.log(`\nFailures (${result.failures.length}):`);
+    for (const f of result.failures.slice(0, 3)) {
+      console.log(`  Run ${f.run}: ${f.error}`);
+    }
+  }
+
+  if (result.samples.length > 0) {
+    console.log(`\nSample output (run ${result.samples[0].run}):`);
+    console.log(JSON.stringify(result.samples[0].output, null, 2).slice(0, 500));
+  }
+}
+```
+
+**Step 3: Create test script**
+
+Create `scripts/test-prompts.ts`:
+```typescript
+#!/usr/bin/env tsx
+import { testPrompt, printTestReport } from '../src/testing/prompt-harness.js';
+import { ENUMERATE_PROMPT, PLAN_PROMPT, REVIEW_PROMPT } from '../src/agents/prompts.js';
+
+const TEST_SPEC = `
+# Test Feature
+Create a greeting function.
+## Requirements
+1. greet(name) returns "Hello, {name}!"
+2. Handle empty name
+`;
+
+async function main() {
+  console.log('Testing prompts against sample spec...\n');
+
+  // Test enumerate prompt
+  const enumerateResult = await testPrompt('enumerate', {
+    prompt: `${ENUMERATE_PROMPT}\n\n## Spec:\n${TEST_SPEC}`,
+    requiredKeys: ['tasks'],
+    runs: 3,
+  });
+  printTestReport(enumerateResult);
+
+  // Test plan prompt (with sample tasks)
+  const sampleTasks = [
+    { id: 't1', title: 'Create greet function', dependencies: [] },
+    { id: 't2', title: 'Add tests', dependencies: ['t1'] },
+  ];
+  const planResult = await testPrompt('plan', {
+    prompt: `${PLAN_PROMPT}\n\n## Tasks:\n${JSON.stringify(sampleTasks)}`,
+    requiredKeys: ['parallelGroups'],
+    runs: 3,
+  });
+  printTestReport(planResult);
+
+  // Summary
+  console.log('\n' + '='.repeat(60));
+  console.log('SUMMARY');
+  console.log('='.repeat(60));
+  const allResults = [enumerateResult, planResult];
+  const avgSuccess = allResults.reduce((a, r) => a + r.successRate, 0) / allResults.length;
+  console.log(`Overall Success Rate: ${(avgSuccess * 100).toFixed(1)}%`);
+
+  if (avgSuccess < 0.9) {
+    console.log('\n⚠️  WARNING: Prompts need improvement before production use.');
+    process.exit(1);
+  } else {
+    console.log('\n✓ Prompts are ready for use.');
+  }
+}
+
+main().catch(console.error);
+```
+
+**Step 4: Add script to package.json**
+
+Add to scripts:
+```json
+{
+  "test:prompts": "tsx scripts/test-prompts.ts"
+}
+```
+
+**Step 5: Commit**
+
+```bash
+git add -A
+git commit -m "feat: add prompt testing harness for validation before deployment"
+```
+
+---
+
 ## Task 7: Enumerate Phase
 
 **Files:**
@@ -977,7 +1488,7 @@ Create `src/orchestrator/phases/enumerate.test.ts`:
 ```typescript
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { parseEnumerateOutput } from './enumerate.js';
+import { parseEnumerateOutput, validateTaskGranularity } from './enumerate.js';
 
 describe('Enumerate Phase', () => {
   test('parseEnumerateOutput extracts tasks from JSON', () => {
@@ -1007,7 +1518,35 @@ Done!`;
   test('parseEnumerateOutput handles invalid JSON gracefully', () => {
     const output = 'No JSON here';
 
-    assert.throws(() => parseEnumerateOutput(output), /Failed to parse/);
+    assert.throws(() => parseEnumerateOutput(output), /No valid JSON/);
+  });
+
+  // Risk #5 mitigation: Task granularity validation
+  test('validateTaskGranularity warns on too-large tasks', () => {
+    const tasks = [
+      { id: 't1', title: 'Huge task', description: 'Everything',
+        status: 'pending' as const, dependencies: [], estimatedIterations: 50, assignedLoopId: null }
+    ];
+    const result = validateTaskGranularity(tasks);
+    assert.ok(result.warnings.some(w => w.includes('too large')));
+  });
+
+  test('validateTaskGranularity warns on too-small tasks', () => {
+    const tasks = [
+      { id: 't1', title: 'Tiny', description: 'x',
+        status: 'pending' as const, dependencies: [], estimatedIterations: 1, assignedLoopId: null }
+    ];
+    const result = validateTaskGranularity(tasks);
+    assert.ok(result.warnings.some(w => w.includes('too small')));
+  });
+
+  test('validateTaskGranularity passes for well-sized tasks', () => {
+    const tasks = [
+      { id: 't1', title: 'Good task', description: 'Reasonable scope',
+        status: 'pending' as const, dependencies: [], estimatedIterations: 10, assignedLoopId: null }
+    ];
+    const result = validateTaskGranularity(tasks);
+    assert.strictEqual(result.warnings.length, 0);
   });
 });
 ```
@@ -1026,30 +1565,64 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { OrchestratorState, Task } from '../../types/index.js';
 import { createAgentConfig } from '../../agents/spawn.js';
 import { ENUMERATE_PROMPT } from '../../agents/prompts.js';
+import { extractJSON } from '../../utils/json-parser.js';
+
+// Task granularity bounds (Risk #5 mitigation)
+const MIN_ESTIMATED_ITERATIONS = 3;
+const MAX_ESTIMATED_ITERATIONS = 25;
+
+export interface GranularityValidation {
+  valid: boolean;
+  warnings: string[];
+}
+
+/**
+ * Validate that tasks are appropriately sized.
+ * Too small = overhead dominates, too large = never completes.
+ */
+export function validateTaskGranularity(tasks: Task[]): GranularityValidation {
+  const warnings: string[] = [];
+
+  for (const task of tasks) {
+    if (task.estimatedIterations < MIN_ESTIMATED_ITERATIONS) {
+      warnings.push(
+        `Task "${task.title}" (${task.id}) may be too small ` +
+        `(${task.estimatedIterations} iterations). Consider combining with related tasks.`
+      );
+    }
+    if (task.estimatedIterations > MAX_ESTIMATED_ITERATIONS) {
+      warnings.push(
+        `Task "${task.title}" (${task.id}) may be too large ` +
+        `(${task.estimatedIterations} iterations). Consider breaking into subtasks.`
+      );
+    }
+    if (task.description.length < 20) {
+      warnings.push(
+        `Task "${task.title}" (${task.id}) has a short description. ` +
+        `More detail helps the build agent.`
+      );
+    }
+  }
+
+  return {
+    valid: warnings.length === 0,
+    warnings,
+  };
+}
 
 export function parseEnumerateOutput(output: string): Task[] {
-  // Extract JSON from markdown code blocks or raw JSON
-  const jsonMatch = output.match(/```(?:json)?\s*([\s\S]*?)```/) ||
-                    output.match(/(\{[\s\S]*"tasks"[\s\S]*\})/);
+  // Use robust JSON parser (Risk #2 mitigation)
+  const parsed = extractJSON<{ tasks: any[] }>(output, ['tasks']);
 
-  if (!jsonMatch) {
-    throw new Error('Failed to parse: No JSON found in output');
-  }
-
-  try {
-    const parsed = JSON.parse(jsonMatch[1].trim());
-    return parsed.tasks.map((t: any) => ({
-      id: t.id,
-      title: t.title,
-      description: t.description,
-      status: 'pending' as const,
-      dependencies: t.dependencies || [],
-      estimatedIterations: t.estimatedIterations || 10,
-      assignedLoopId: null,
-    }));
-  } catch (e) {
-    throw new Error(`Failed to parse: ${e}`);
-  }
+  return parsed.tasks.map((t: any) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    status: 'pending' as const,
+    dependencies: t.dependencies || [],
+    estimatedIterations: t.estimatedIterations || 10,
+    assignedLoopId: null,
+  }));
 }
 
 export async function executeEnumerate(
@@ -2784,23 +3357,32 @@ git commit -m "chore: add example specs and finalize integration"
 
 ## Summary
 
-The implementation is broken into 16 tasks:
+The implementation is broken into 18 tasks (including risk mitigation tasks):
 
 1. **Project Scaffolding** - package.json, tsconfig, dependencies
-2. **Core Types** - State, Task, Loop type definitions
+2. **Core Types** - State, Task, Loop, Cost type definitions
 3. **State Management** - Load/save with Zod validation
+3A. **Robust JSON Parser** - Multi-strategy extraction with repair (Risk #2)
 4. **CLI Entry Point** - Commander-based CLI parsing
-5. **Effort Configuration** - Effort level configs
+5. **Effort Configuration** - Effort level configs with cost limits (Risk #3)
 6. **Agent Spawning** - Claude SDK wrapper and prompts
-7. **Enumerate Phase** - Task extraction from spec
+6A. **Prompt Testing Harness** - Validate prompts before deployment (Risk #1)
+7. **Enumerate Phase** - Task extraction with granularity validation (Risk #5)
 8. **Plan Phase** - Parallel group planning
 9. **Loop Manager** - Parallel loop coordination
-10. **Stuck Detection** - Loop health monitoring
-11. **Build Phase** - Parallel task execution
+10. **Stuck Detection** - Loop health monitoring with logging
+11. **Build Phase** - Parallel task execution with cost tracking
 12. **Review Phase** - Configurable review depth
-13. **Orchestrator Core** - Phase state machine
+13. **Orchestrator Core** - Phase state machine with cost enforcement
 14. **TUI Layout** - Ink multi-column display
 15. **Integration** - TUI + orchestrator wiring
 16. **Final Test** - End-to-end validation
+
+**Risk Mitigations Integrated:**
+- **Risk #1 (Prompts)**: Task 6A adds prompt testing harness
+- **Risk #2 (JSON)**: Task 3A adds robust multi-strategy JSON parser
+- **Risk #3 (Costs)**: Tasks 2, 5, 13 add cost tracking and limits
+- **Risk #4 (Stuck Detection)**: Task 10 has configurable thresholds
+- **Risk #5 (Granularity)**: Task 7 validates task sizing
 
 Each task follows TDD with explicit test-first steps and commits.
