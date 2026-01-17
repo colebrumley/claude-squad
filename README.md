@@ -59,6 +59,7 @@ sq --spec <path> [options]
 | `--max-loops <n>` | Max concurrent parallel agents | 4 |
 | `--max-iterations <n>` | Max iterations per agent loop | 20 |
 | `--state-dir <path>` | State directory | `.sq` |
+| `--debug` | Enable debug tracing to `.sq/debug/<runId>/` | off |
 
 ### Examples
 
@@ -74,6 +75,9 @@ sq --spec bugfix.md --no-worktrees
 
 # Resume after interruption
 sq --spec feature.md --resume
+
+# Debug mode (traces prompts/responses to .sq/debug/)
+sq --spec feature.md --debug
 ```
 
 ## Effort Levels
@@ -123,6 +127,15 @@ Run with `--tui` for a terminal interface showing:
 - Overall progress and current phase
 - Active agent loops with their tasks
 - Streaming output from each agent
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `q` | Quit (saves state for resume) |
+| `p` | Pause/resume orchestration |
+| `r` | Trigger immediate review |
+| `1-4` | Focus on loop column (press again to unfocus) |
 
 ## How It Works
 
