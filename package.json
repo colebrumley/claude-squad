@@ -24,6 +24,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "prepare": "sh scripts/setup-hooks.sh",
     "build": "tsc && cp src/db/schema.sql dist/db/",
     "prepublishOnly": "npm run build",
     "dev": "tsx src/index.ts",
