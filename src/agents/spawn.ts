@@ -55,12 +55,12 @@ export function createAgentConfig(
   // Add MCP server for phases that write to the database
   if (runId && ['enumerate', 'plan', 'build', 'review', 'revise'].includes(phase)) {
     config.mcpServers = {
-      'c2-db': {
+      'sq-db': {
         command: 'node',
         args: [
-          resolve(cwd, 'node_modules/.bin/c2-mcp'),
+          resolve(cwd, 'node_modules/.bin/sq-mcp'),
           runId,
-          dbPath || resolve(cwd, '.c2/state.db'),
+          dbPath || resolve(cwd, '.sq/state.db'),
         ],
       },
     };

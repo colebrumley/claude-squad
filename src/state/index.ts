@@ -37,7 +37,7 @@ export function initializeState(options: InitStateOptions): OrchestratorState {
   const useWorktrees = options.useWorktrees !== false && baseBranch !== null;
 
   if (useWorktrees && !isGitClean()) {
-    throw new Error('Cannot run c2 with uncommitted changes - commit or stash first');
+    throw new Error('Cannot run sq with uncommitted changes - commit or stash first');
   }
 
   return {

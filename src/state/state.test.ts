@@ -7,7 +7,7 @@ describe('State Management', () => {
     const state = initializeState({
       specPath: '/path/to/spec.md',
       effort: 'medium',
-      stateDir: '.c2',
+      stateDir: '.sq',
       maxLoops: 4,
       maxIterations: 20,
       useWorktrees: false, // Disable for testing (may have uncommitted changes)

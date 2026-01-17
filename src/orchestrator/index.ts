@@ -1,5 +1,4 @@
 import type { OrchestratorState, Phase } from '../types/index.js';
-import { saveState } from '../state/index.js';
 import { getEffortConfig } from '../config/effort.js';
 import { LoopManager } from '../loops/manager.js';
 import { executeEnumerate } from './phases/enumerate.js';
@@ -172,7 +171,6 @@ export async function runOrchestrator(
     callbacks.onPhaseComplete?.(state.phase, false);
   }
 
-  await saveState(state);
   return state;
 }
 

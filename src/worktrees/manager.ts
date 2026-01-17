@@ -30,7 +30,7 @@ export class WorktreeManager {
   }
 
   async create(loopId: string): Promise<CreateResult> {
-    const branchName = `c2/${this.config.runId}/${loopId}`;
+    const branchName = `sq/${this.config.runId}/${loopId}`;
     const worktreePath = join(this.config.worktreeBaseDir, loopId);
 
     // Ensure base directory exists
@@ -48,7 +48,7 @@ export class WorktreeManager {
   }
 
   async merge(loopId: string): Promise<MergeResult> {
-    const branchName = `c2/${this.config.runId}/${loopId}`;
+    const branchName = `sq/${this.config.runId}/${loopId}`;
     const worktreePath = join(this.config.worktreeBaseDir, loopId);
 
     // Commit any uncommitted changes in worktree
@@ -87,7 +87,7 @@ export class WorktreeManager {
   }
 
   async cleanup(loopId: string): Promise<void> {
-    const branchName = `c2/${this.config.runId}/${loopId}`;
+    const branchName = `sq/${this.config.runId}/${loopId}`;
     const worktreePath = join(this.config.worktreeBaseDir, loopId);
 
     // Remove worktree

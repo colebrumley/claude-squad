@@ -23,9 +23,9 @@ describe('Agent Spawning', () => {
     const config = createAgentConfig('enumerate', '/path/to/project', 'test-run', '/custom/db.db');
 
     assert.ok(config.mcpServers);
-    assert.ok('c2-db' in config.mcpServers!);
-    assert.strictEqual(config.mcpServers!['c2-db'].command, 'node');
-    assert.ok(config.mcpServers!['c2-db'].args.includes('test-run'));
+    assert.ok('sq-db' in config.mcpServers!);
+    assert.strictEqual(config.mcpServers!['sq-db'].command, 'node');
+    assert.ok(config.mcpServers!['sq-db'].args.includes('test-run'));
   });
 
   test('createAgentConfig without runId has no MCP server', () => {

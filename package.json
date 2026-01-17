@@ -1,18 +1,19 @@
 {
-  "name": "c2",
+  "name": "claude-squad",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "type": "module",
   "bin": {
-    "c2": "./bin/c2",
-    "c2-mcp": "./dist/mcp/index.js"
+    "sq": "./bin/sq",
+    "sq-mcp": "./dist/mcp/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp src/db/schema.sql dist/db/",
     "dev": "tsx src/index.ts",
-    "test": "npx tsx --test",
-    "test:prompts": "tsx scripts/test-prompts.ts"
+    "test": "tsx --test 'src/**/*.test.ts'",
+    "test:prompts": "tsx scripts/test-prompts.ts",
+    "eval": "tsx src/evals/index.ts"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +25,7 @@
     "commander": "^14.0.2",
     "ink": "^6.6.0",
     "react": "^19.2.3",
+    "yaml": "^2.8.2",
     "zod": "^4.3.5"
   },
   "devDependencies": {

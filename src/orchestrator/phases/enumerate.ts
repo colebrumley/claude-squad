@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { OrchestratorState, Task } from '../../types/index.js';
 import { createAgentConfig } from '../../agents/spawn.js';
-import { ENUMERATE_PROMPT } from '../../agents/prompts.js';
+import { ENUMERATE_PROMPT_JSON } from '../../agents/prompts.js';
 import { extractJSON } from '../../utils/json-parser.js';
 
 // Task granularity bounds (Risk #5 mitigation)
@@ -70,7 +70,7 @@ export async function executeEnumerate(
   const specContent = await readFile(state.specPath, 'utf-8');
   const config = createAgentConfig('enumerate', process.cwd());
 
-  const prompt = `${ENUMERATE_PROMPT}
+  const prompt = `${ENUMERATE_PROMPT_JSON}
 
 ## Spec File Content:
 ${specContent}`;

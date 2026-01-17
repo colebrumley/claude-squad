@@ -96,9 +96,14 @@ export async function executeReview(
     case 'plan':
       context = `Review the execution plan:\n${JSON.stringify(state.taskGraph, null, 2)}`;
       break;
-    case 'build':
-      context = `Review the completed work. Tasks completed: ${state.completedTasks.join(', ')}`;
+    case 'build': {
+      const taskDetails = state.completedTasks.map(id => {
+        const task = state.tasks.find(t => t.id === id);
+        return task ? `- ${id}: ${task.title}\n  ${task.description}` : `- ${id}`;
+      }).join('\n');
+      context = `Review the completed work.\n\nCompleted tasks:\n${taskDetails}\n\nUse the Read and Glob tools to verify the implementation files exist and are correct.`;
       break;
+    }
   }
 
   const prompt = `${getReviewPrompt(depth)}

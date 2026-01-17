@@ -1,7 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { OrchestratorState, Task, TaskGraph } from '../../types/index.js';
 import { createAgentConfig } from '../../agents/spawn.js';
-import { PLAN_PROMPT } from '../../agents/prompts.js';
+import { PLAN_PROMPT_JSON } from '../../agents/prompts.js';
 
 export interface PlanOutput {
   parallelGroups: string[][];
@@ -41,7 +41,7 @@ export async function executePlan(
   const config = createAgentConfig('plan', process.cwd());
 
   const tasksJson = JSON.stringify(state.tasks, null, 2);
-  const prompt = `${PLAN_PROMPT}
+  const prompt = `${PLAN_PROMPT_JSON}
 
 ## Tasks to Plan:
 ${tasksJson}`;

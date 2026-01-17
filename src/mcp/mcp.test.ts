@@ -10,7 +10,7 @@ describe('MCP Server', () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), 'c2-mcp-test-'));
+    tempDir = await mkdtemp(join(tmpdir(), 'sq-mcp-test-'));
     createDatabase(join(tempDir, 'state.db'));
 
     // Create a test run

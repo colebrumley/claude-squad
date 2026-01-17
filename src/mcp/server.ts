@@ -18,7 +18,7 @@ import {
 
 export function createMCPServer(runId: string) {
   const server = new Server(
-    { name: 'c2-orchestrator', version: '1.0.0' },
+    { name: 'claude-squad', version: '1.0.0' },
     { capabilities: { tools: {} } }
   );
 

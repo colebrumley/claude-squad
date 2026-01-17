@@ -55,13 +55,13 @@ describe('LoopManager with worktrees', () => {
   let worktreeManager: WorktreeManager;
 
   beforeEach(() => {
-    testDir = mkdtempSync(join(tmpdir(), 'c2-loop-wt-test-'));
+    testDir = mkdtempSync(join(tmpdir(), 'sq-loop-wt-test-'));
     repoDir = join(testDir, 'repo');
     execSync(`mkdir -p ${repoDir} && cd ${repoDir} && git init && git commit --allow-empty -m "init"`, { stdio: 'pipe' });
 
     worktreeManager = new WorktreeManager({
       repoDir,
-      worktreeBaseDir: join(repoDir, '.c2', 'worktrees'),
+      worktreeBaseDir: join(repoDir, '.sq', 'worktrees'),
       baseBranch: 'main',
       runId: 'test-run',
     });

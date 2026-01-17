@@ -12,7 +12,7 @@ describe('Worktree Integration', () => {
   let repoDir: string;
 
   beforeEach(() => {
-    testDir = mkdtempSync(join(tmpdir(), 'c2-integration-'));
+    testDir = mkdtempSync(join(tmpdir(), 'sq-integration-'));
     repoDir = join(testDir, 'repo');
     execSync(`mkdir -p ${repoDir}`, { stdio: 'pipe' });
     execSync('git init', { cwd: repoDir, stdio: 'pipe' });
@@ -27,7 +27,7 @@ describe('Worktree Integration', () => {
   it('full lifecycle: create, work, merge, cleanup', async () => {
     const manager = new WorktreeManager({
       repoDir,
-      worktreeBaseDir: join(repoDir, '.c2', 'worktrees'),
+      worktreeBaseDir: join(repoDir, '.sq', 'worktrees'),
       baseBranch: 'main',
       runId: 'integration-test',
     });
@@ -58,7 +58,7 @@ describe('Worktree Integration', () => {
   it('handles multiple parallel worktrees', async () => {
     const manager = new WorktreeManager({
       repoDir,
-      worktreeBaseDir: join(repoDir, '.c2', 'worktrees'),
+      worktreeBaseDir: join(repoDir, '.sq', 'worktrees'),
       baseBranch: 'main',
       runId: 'parallel-test',
     });

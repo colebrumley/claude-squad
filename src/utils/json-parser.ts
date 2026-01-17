@@ -66,28 +66,3 @@ export function extractJSON<T = unknown>(
     output.slice(0, 500)
   );
 }
-
-/**
- * Attempt to repair common JSON issues and extract.
- * Falls back to standard extraction if repair fails.
- */
-export function extractJSONWithRepair<T = unknown>(
-  output: string,
-  requiredKeys: string[] = []
-): T {
-  try {
-    return extractJSON<T>(output, requiredKeys);
-  } catch (e) {
-    // Try to repair common issues
-    const repaired = output
-      // Remove trailing commas
-      .replace(/,(\s*[}\]])/g, '$1')
-      // Fix single quotes
-      .replace(/'/g, '"')
-      // Remove comments
-      .replace(/\/\/.*$/gm, '')
-      .replace(/\/\*[\s\S]*?\*\//g, '');
-
-    return extractJSON<T>(repaired, requiredKeys);
-  }
-}

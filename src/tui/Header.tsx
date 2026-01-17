@@ -10,7 +10,7 @@ interface HeaderProps {
 export function Header({ state, activeLoopCount }: HeaderProps) {
   return (
     <Box borderStyle="single" paddingX={1}>
-      <Text bold>c2 orchestrator</Text>
+      <Text bold>Claude Squad</Text>
       <Text> | </Text>
       <Text>phase: </Text>
       <Text color="cyan">{state.phase}</Text>

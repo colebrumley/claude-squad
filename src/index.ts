@@ -8,7 +8,7 @@ import { initializeState } from './state/index.js';
 import { runOrchestrator, getExitCode } from './orchestrator/index.js';
 
 async function cleanWorktrees(runId?: string) {
-  const worktreeDir = join(process.cwd(), '.c2', 'worktrees');
+  const worktreeDir = join(process.cwd(), '.sq', 'worktrees');
 
   if (!existsSync(worktreeDir)) {
     console.log('No worktrees to clean');
