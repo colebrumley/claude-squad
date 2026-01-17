@@ -268,16 +268,22 @@ describe('MCP Tool Schemas', () => {
   describe('SetReviewResultSchema', () => {
     test('accepts passed review', () => {
       const result = SetReviewResultSchema.parse({
+        interpretedIntent: 'User wants to add a feature',
+        intentSatisfied: true,
         passed: true,
         issues: [],
       });
 
       assert.strictEqual(result.passed, true);
+      assert.strictEqual(result.intentSatisfied, true);
+      assert.strictEqual(result.interpretedIntent, 'User wants to add a feature');
       assert.deepStrictEqual(result.issues, []);
     });
 
     test('accepts failed review with issues', () => {
       const result = SetReviewResultSchema.parse({
+        interpretedIntent: 'User wants clean code',
+        intentSatisfied: false,
         passed: false,
         issues: [
           {
@@ -291,12 +297,37 @@ describe('MCP Tool Schemas', () => {
       });
 
       assert.strictEqual(result.passed, false);
+      assert.strictEqual(result.intentSatisfied, false);
       assert.strictEqual(result.issues.length, 1);
     });
 
     test('defaults issues to empty array', () => {
-      const result = SetReviewResultSchema.parse({ passed: true });
+      const result = SetReviewResultSchema.parse({
+        interpretedIntent: 'User wants a working feature',
+        intentSatisfied: true,
+        passed: true,
+      });
       assert.deepStrictEqual(result.issues, []);
+    });
+
+    test('accepts spec-intent-mismatch issue type', () => {
+      const result = SetReviewResultSchema.parse({
+        interpretedIntent: 'User wants user-friendly error messages',
+        intentSatisfied: false,
+        passed: true,
+        issues: [
+          {
+            taskId: 'task-1',
+            file: 'src/form.tsx',
+            type: 'spec-intent-mismatch',
+            description: 'Error messages are technical codes',
+            suggestion: 'Use human-readable messages',
+          },
+        ],
+      });
+
+      assert.strictEqual(result.intentSatisfied, false);
+      assert.strictEqual(result.issues[0].type, 'spec-intent-mismatch');
     });
   });
 

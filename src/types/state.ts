@@ -9,7 +9,8 @@ export type ReviewIssueType =
   | 'over-engineering'
   | 'missing-error-handling'
   | 'pattern-violation'
-  | 'dead-code';
+  | 'dead-code'
+  | 'spec-intent-mismatch';
 
 export interface ReviewIssue {
   taskId: string;

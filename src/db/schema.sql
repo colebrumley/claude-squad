@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS runs (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   base_branch TEXT,
-  use_worktrees INTEGER NOT NULL DEFAULT 1
+  use_worktrees INTEGER NOT NULL DEFAULT 1,
+  interpreted_intent TEXT,
+  intent_satisfied INTEGER
 );
 
 -- Tasks table: enumerated tasks for a run
@@ -85,7 +87,7 @@ CREATE TABLE IF NOT EXISTS review_issues (
   task_id TEXT NOT NULL,
   file TEXT NOT NULL,
   line INTEGER,
-  type TEXT NOT NULL CHECK (type IN ('over-engineering', 'missing-error-handling', 'pattern-violation', 'dead-code')),
+  type TEXT NOT NULL CHECK (type IN ('over-engineering', 'missing-error-handling', 'pattern-violation', 'dead-code', 'spec-intent-mismatch')),
   description TEXT NOT NULL,
   suggestion TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))

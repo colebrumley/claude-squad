@@ -47,13 +47,29 @@ export const ReviewIssueSchema = z.object({
   file: z.string().describe('File path where the issue was found'),
   line: z.number().optional().describe('Line number of the issue'),
   type: z
-    .enum(['over-engineering', 'missing-error-handling', 'pattern-violation', 'dead-code'])
+    .enum([
+      'over-engineering',
+      'missing-error-handling',
+      'pattern-violation',
+      'dead-code',
+      'spec-intent-mismatch',
+    ])
     .describe('Type of issue'),
   description: z.string().describe('Description of the issue'),
   suggestion: z.string().describe('Suggested fix'),
 });
 
 export const SetReviewResultSchema = z.object({
+  interpretedIntent: z
+    .string()
+    .describe(
+      'In 1-2 sentences, what was the user actually trying to accomplish? What unstated expectations would be reasonable?'
+    ),
+  intentSatisfied: z
+    .boolean()
+    .describe(
+      'Does the implementation serve the interpreted intent, not just the literal spec words?'
+    ),
   passed: z.boolean().describe('Whether review passed'),
   issues: z.array(ReviewIssueSchema).default([]).describe('Structured review issues found'),
 });

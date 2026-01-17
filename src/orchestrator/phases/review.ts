@@ -17,12 +17,19 @@ export interface ReviewResult {
   issues: ReviewIssue[];
   suggestions: string[];
   costUsd: number;
+  interpretedIntent?: string;
+  intentSatisfied?: boolean;
 }
 
 /**
  * Load review results from database after agent has written them via MCP set_review_result.
  */
-export function loadReviewResultFromDB(runId: string): { passed: boolean; issues: ReviewIssue[] } {
+export function loadReviewResultFromDB(runId: string): {
+  passed: boolean;
+  issues: ReviewIssue[];
+  interpretedIntent?: string;
+  intentSatisfied?: boolean;
+} {
   const db = getDatabase();
 
   // Load review issues
@@ -44,41 +51,82 @@ export function loadReviewResultFromDB(runId: string): { passed: boolean; issues
     suggestion: row.suggestion,
   }));
 
-  // Check if review passed (no issues = passed)
-  // The set_review_result MCP tool clears pending_review, so we check issues
-  const passed = issues.length === 0;
+  // Load intent analysis from runs table
+  const run = db
+    .prepare('SELECT interpreted_intent, intent_satisfied FROM runs WHERE id = ?')
+    .get(runId) as
+    | {
+        interpreted_intent: string | null;
+        intent_satisfied: number | null;
+      }
+    | undefined;
 
-  return { passed, issues };
+  const interpretedIntent = run?.interpreted_intent ?? undefined;
+  const intentSatisfied = run?.intent_satisfied != null ? run.intent_satisfied === 1 : undefined;
+
+  // Review passes only if no issues AND intent is satisfied
+  // If intentSatisfied is undefined (not set), fall back to just checking issues
+  const passed = issues.length === 0 && (intentSatisfied ?? true);
+
+  return { passed, issues, interpretedIntent, intentSatisfied };
 }
 
 export function getReviewPrompt(depth: EffortConfig['reviewDepth']): string {
+  const intentAnalysis = `
+## Intent Analysis (Do This First)
+
+Before examining implementation details, step back and consider the spec holistically:
+
+1. **What was the user trying to accomplish?** Not just what they asked for literally, but what goal they're pursuing. A request to "add a login button" is really about enabling user authentication.
+
+2. **What would a reasonable user expect?** Even if not stated, what adjacent requirements would be natural? Error messages, edge case handling, consistent UX patterns, etc.
+
+3. **Does the implementation serve the goal?** Code can satisfy literal requirements while missing the point entirely. A login button that exists but is hidden, or works but has no error feedback, technically meets the spec but fails the user.
+
+Write down your interpretation before reviewing code. This prevents rationalization.`;
+
   const mcpInstructions = `
 ## How to Report Results
 Use the \`set_review_result\` MCP tool when you finish reviewing.
 
+**Required fields:**
+- \`interpretedIntent\`: In 1-2 sentences, what was the user actually trying to accomplish? What unstated expectations would be reasonable?
+- \`intentSatisfied\`: Does the implementation serve this interpreted intent, not just the literal words?
+- \`passed\`: Did the implementation pass technical review (tests, bugs, code quality)?
+- \`issues\`: Array of specific issues found
+
+**Important:** Both \`passed\` AND \`intentSatisfied\` must be true for the review to pass. Code that works but misses the point should fail.
+
 For a passing review:
 \`\`\`
-set_review_result({ passed: true, issues: [] })
+set_review_result({
+  interpretedIntent: "User wants to enable authentication so users can have persistent accounts and personalized experiences",
+  intentSatisfied: true,
+  passed: true,
+  issues: []
+})
 \`\`\`
 
-For a failing review with issues:
+For a failing review (intent not satisfied):
 \`\`\`
 set_review_result({
-  passed: false,
+  interpretedIntent: "User wants error messages to help users understand and fix problems",
+  intentSatisfied: false,
+  passed: true,
   issues: [
     {
-      taskId: "task-3",
-      file: "src/models/User.ts",
-      line: 42,
-      type: "missing-error-handling",
-      description: "Database query can throw but error is not caught",
-      suggestion: "Wrap in try/catch and return appropriate error response"
+      taskId: "task-5",
+      file: "src/components/Form.tsx",
+      line: 89,
+      type: "spec-intent-mismatch",
+      description: "Error messages are technical (e.g., 'VALIDATION_ERR_422') rather than user-friendly",
+      suggestion: "Replace error codes with human-readable messages like 'Please enter a valid email address'"
     }
   ]
 })
 \`\`\`
 
-Issue types: over-engineering, missing-error-handling, pattern-violation, dead-code`;
+Issue types: over-engineering, missing-error-handling, pattern-violation, dead-code, spec-intent-mismatch`;
 
   const qualityChecks = `
 **Check for these quality issues:**
@@ -94,6 +142,7 @@ For each issue, specify the file, line number, what's wrong, and how to fix it.`
       return `# REVIEW PHASE
 
 You are in the **REVIEW** phase. Evaluate the work done so far.
+${intentAnalysis}
 ${mcpInstructions}
 
 Perform a basic review:
@@ -106,6 +155,7 @@ When done, output: REVIEW_COMPLETE`;
       return `# REVIEW PHASE
 
 You are in the **REVIEW** phase. Evaluate the work done so far.
+${intentAnalysis}
 ${mcpInstructions}
 ${qualityChecks}
 
@@ -120,6 +170,7 @@ When done, output: REVIEW_COMPLETE`;
       return `# REVIEW PHASE
 
 You are in the **REVIEW** phase. Evaluate the work done so far.
+${intentAnalysis}
 ${mcpInstructions}
 ${qualityChecks}
 
@@ -136,6 +187,7 @@ When done, output: REVIEW_COMPLETE`;
       return `# REVIEW PHASE
 
 You are in the **REVIEW** phase. Evaluate the work done so far.
+${intentAnalysis}
 ${mcpInstructions}
 ${qualityChecks}
 
@@ -232,12 +284,16 @@ File: ${state.specPath}`;
   await writer?.complete(costUsd, durationMs);
 
   // Review result is now in the database via MCP set_review_result call
-  const { passed, issues } = loadReviewResultFromDB(state.runId);
+  const { passed, issues, interpretedIntent, intentSatisfied } = loadReviewResultFromDB(
+    state.runId
+  );
 
   return {
     passed,
     issues,
     suggestions: [],
     costUsd,
+    interpretedIntent,
+    intentSatisfied,
   };
 }

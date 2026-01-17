@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { MCP_SERVER_PATH } from '../paths.js';
 import type { Phase } from '../types/index.js';
 
 interface MCPServerConfig {
@@ -57,11 +58,7 @@ export function createAgentConfig(
     config.mcpServers = {
       'sq-db': {
         command: 'node',
-        args: [
-          resolve(cwd, 'node_modules/.bin/sq-mcp'),
-          runId,
-          dbPath || resolve(cwd, '.sq/state.db'),
-        ],
+        args: [MCP_SERVER_PATH, runId, dbPath || resolve(cwd, '.sq/state.db')],
       },
     };
   }

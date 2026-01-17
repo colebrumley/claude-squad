@@ -174,6 +174,16 @@ export function createMCPServer(runId: string, dbPath: string) {
         inputSchema: {
           type: 'object' as const,
           properties: {
+            interpretedIntent: {
+              type: 'string',
+              description:
+                'In 1-2 sentences, what was the user actually trying to accomplish? What unstated expectations would be reasonable?',
+            },
+            intentSatisfied: {
+              type: 'boolean',
+              description:
+                'Does the implementation serve the interpreted intent, not just the literal spec words?',
+            },
             passed: { type: 'boolean', description: 'Whether review passed' },
             issues: {
               type: 'array',
@@ -190,6 +200,7 @@ export function createMCPServer(runId: string, dbPath: string) {
                       'missing-error-handling',
                       'pattern-violation',
                       'dead-code',
+                      'spec-intent-mismatch',
                     ],
                     description: 'Type of issue',
                   },
@@ -201,7 +212,7 @@ export function createMCPServer(runId: string, dbPath: string) {
               description: 'Structured review issues found',
             },
           },
-          required: ['passed'],
+          required: ['interpretedIntent', 'intentSatisfied', 'passed'],
         },
       },
       {
@@ -386,15 +397,22 @@ export function createMCPServer(runId: string, dbPath: string) {
             issue.suggestion
           );
         }
-        // Update pending_review on runs
+        // Update pending_review and store intent analysis on runs
         db.prepare(`
-          UPDATE runs SET pending_review = 0 WHERE id = ?
-        `).run(runId);
+          UPDATE runs SET
+            pending_review = 0,
+            interpreted_intent = ?,
+            intent_satisfied = ?
+          WHERE id = ?
+        `).run(review.interpretedIntent, review.intentSatisfied ? 1 : 0, runId);
+
+        // Determine final pass/fail: must pass both technical review AND intent check
+        const finalPassed = review.passed && review.intentSatisfied;
         result = {
           content: [
             {
               type: 'text',
-              text: `Review result: ${review.passed ? 'PASSED' : 'FAILED'} (${review.issues.length} issues)`,
+              text: `Review result: ${finalPassed ? 'PASSED' : 'FAILED'} (${review.issues.length} issues, intent ${review.intentSatisfied ? 'satisfied' : 'NOT satisfied'})`,
             },
           ],
         };
