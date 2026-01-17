@@ -21,8 +21,6 @@ npm install           # Install dependencies
 npm run build         # Compile TypeScript to dist/
 npm run dev           # Run directly with tsx (no compile needed)
 npm run test          # Run all tests
-npm run test:prompts  # Test prompt harness
-npm run eval          # Run prompt evals
 npm run lint          # Run biome linter
 npm run typecheck     # Type check without emitting
 ```
@@ -91,7 +89,6 @@ Disable with `--no-worktrees` for simpler single-agent runs.
 - `src/db/` - SQLite schema and helpers
 - `src/state/` - State initialization and Zod schema validation
 - `src/tui/` - Ink/React terminal UI components
-- `src/evals/` - Prompt evaluation system with A/B testing
 - `src/config/effort.ts` - Effort level configurations
 
 ### Effort Levels
@@ -132,20 +129,6 @@ Core types in `src/types/`:
 - `Task` / `TaskGraph` - Task definitions with dependencies and parallel groups
 - `LoopState` - Individual agent loop with iteration count and stuck indicators
 - `EffortLevel` / `Phase` - Union types for valid values
-
-## Eval System
-
-The eval system tests prompt quality with automated grading:
-
-```bash
-npm run eval                              # Run all test suites
-npm run eval -- --case enumerate          # Run specific suite
-npm run eval -- --compare promptA promptB # A/B compare prompts
-npm run eval -- --baseline                # Save results as baseline
-npm run eval -- --check                   # Check for regressions
-```
-
-Test cases live in `evals/cases/*.yaml`. Each defines inputs and expected behaviors that the grader scores.
 
 ## Troubleshooting
 

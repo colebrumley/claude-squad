@@ -1,3 +1,4 @@
+import type { DebugTracer } from '../debug/index.js';
 import type { LoopState } from '../types/index.js';
 
 export enum StuckReason {
@@ -16,25 +17,45 @@ export interface StuckConfig {
   stuckThreshold: number;
 }
 
-export function detectStuck(loop: LoopState, config: StuckConfig): StuckResult | null {
+export function detectStuck(
+  loop: LoopState,
+  config: StuckConfig,
+  tracer?: DebugTracer
+): StuckResult | null {
   const { stuckIndicators, iteration, maxIterations } = loop;
 
   // Check max iterations first
   if (iteration > maxIterations) {
-    return {
+    const result = {
       reason: StuckReason.MAX_ITERATIONS,
       details: `Exceeded max iterations (${maxIterations})`,
       suggestion: 'Consider breaking task into smaller pieces or increasing max iterations',
     };
+    tracer?.logDecision(
+      'stuck_detection',
+      { iteration, maxIterations, sameErrorCount: stuckIndicators.sameErrorCount, noProgressCount: stuckIndicators.noProgressCount, threshold: config.stuckThreshold },
+      result.reason,
+      result.details,
+      loop.loopId
+    );
+    return result;
   }
 
   // Check repeated same error
   if (stuckIndicators.sameErrorCount >= config.stuckThreshold) {
-    return {
+    const result = {
       reason: StuckReason.REPEATED_ERROR,
       details: `Same error repeated ${stuckIndicators.sameErrorCount} times: ${stuckIndicators.lastError}`,
       suggestion: 'Try a different approach or provide more context',
     };
+    tracer?.logDecision(
+      'stuck_detection',
+      { iteration, maxIterations, sameErrorCount: stuckIndicators.sameErrorCount, noProgressCount: stuckIndicators.noProgressCount, threshold: config.stuckThreshold },
+      result.reason,
+      result.details,
+      loop.loopId
+    );
+    return result;
   }
 
   // Check no file changes (no progress)
@@ -43,12 +64,29 @@ export function detectStuck(loop: LoopState, config: StuckConfig): StuckResult |
     stuckIndicators.noProgressCount >= config.stuckThreshold ||
     iterationsSinceChange >= config.stuckThreshold + 2
   ) {
-    return {
+    const result = {
       reason: StuckReason.NO_PROGRESS,
       details: `No file changes in ${iterationsSinceChange} iterations`,
       suggestion: 'Agent may be confused about the task or blocked by an issue',
     };
+    tracer?.logDecision(
+      'stuck_detection',
+      { iteration, maxIterations, sameErrorCount: stuckIndicators.sameErrorCount, noProgressCount: stuckIndicators.noProgressCount, threshold: config.stuckThreshold },
+      result.reason,
+      result.details,
+      loop.loopId
+    );
+    return result;
   }
+
+  // Log not stuck decision
+  tracer?.logDecision(
+    'stuck_detection',
+    { iteration, maxIterations, sameErrorCount: stuckIndicators.sameErrorCount, noProgressCount: stuckIndicators.noProgressCount, threshold: config.stuckThreshold },
+    'not_stuck',
+    'Loop is progressing normally',
+    loop.loopId
+  );
 
   return null;
 }

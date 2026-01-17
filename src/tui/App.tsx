@@ -3,8 +3,29 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { closeDatabase } from '../db/index.js';
 import { runOrchestrator } from '../orchestrator/index.js';
 import { saveRun } from '../state/index.js';
-import type { LoopState, OrchestratorState } from '../types/index.js';
+import type { LoopState, OrchestratorState, Phase } from '../types/index.js';
 import { Layout } from './Layout.js';
+
+function getPhaseStatusMessage(phase: Phase): string {
+  switch (phase) {
+    case 'enumerate':
+      return 'Reading spec and identifying tasks...';
+    case 'plan':
+      return 'Analyzing dependencies and creating execution plan...';
+    case 'build':
+      return 'Running parallel agents...';
+    case 'review':
+      return 'Reviewing work quality...';
+    case 'revise':
+      return 'Analyzing issues and planning fixes...';
+    case 'conflict':
+      return 'Resolving merge conflicts...';
+    case 'complete':
+      return 'All tasks complete';
+    default:
+      return '';
+  }
+}
 
 interface AppProps {
   initialState: OrchestratorState;
@@ -16,6 +37,11 @@ export function App({ initialState }: AppProps) {
   const [loops, setLoops] = useState<LoopState[]>(initialState.activeLoops);
   const [running, setRunning] = useState(true);
   const stateRef = useRef(state);
+
+  // Status area state
+  const [isLoading, setIsLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState(getPhaseStatusMessage(initialState.phase));
+  const [phaseOutput, setPhaseOutput] = useState<string[]>([]);
 
   // Keep stateRef in sync for signal handler access
   useEffect(() => {
@@ -65,6 +91,19 @@ export function App({ initialState }: AppProps) {
     if (!running || state.phase === 'complete') return;
 
     const newState = await runOrchestrator(state, {
+      onPhaseStart: (phase) => {
+        setIsLoading(true);
+        setStatusMessage(getPhaseStatusMessage(phase));
+        setPhaseOutput([]);
+      },
+      onPhaseComplete: (_phase, success) => {
+        setIsLoading(false);
+        setStatusMessage(success ? 'Complete' : 'Failed');
+      },
+      onOutput: (text) => {
+        // Stream phase output (enumerate, plan, review, etc.)
+        setPhaseOutput((prev) => [...prev.slice(-9), text]);
+      },
       onLoopOutput: (loopId, text) => {
         setLoops((prev) =>
           prev.map((l) =>
@@ -73,6 +112,13 @@ export function App({ initialState }: AppProps) {
         );
       },
     });
+
+    // Update status for the new phase
+    setIsLoading(true);
+    setStatusMessage(getPhaseStatusMessage(newState.phase));
+    if (newState.phase !== state.phase) {
+      setPhaseOutput([]);
+    }
 
     setState(newState);
     setLoops(newState.activeLoops);
@@ -84,5 +130,13 @@ export function App({ initialState }: AppProps) {
     }
   }, [running, state.phase, runPhase]);
 
-  return <Layout state={state} loops={loops} />;
+  return (
+    <Layout
+      state={state}
+      loops={loops}
+      isLoading={isLoading}
+      statusMessage={statusMessage}
+      phaseOutput={phaseOutput}
+    />
+  );
 }

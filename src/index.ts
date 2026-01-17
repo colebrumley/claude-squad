@@ -5,6 +5,7 @@ import { access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createCLI } from './cli.js';
 import { createDatabase } from './db/index.js';
+import { createTracer } from './debug/index.js';
 import { getExitCode, runOrchestrator } from './orchestrator/index.js';
 import { printDryRunSummary } from './orchestrator/summary.js';
 import { initializeState, loadState, saveRun } from './state/index.js';
@@ -87,6 +88,7 @@ async function main() {
       maxLoops: Number.parseInt(opts.maxLoops, 10),
       maxIterations: Number.parseInt(opts.maxIterations, 10),
       useWorktrees: !opts.noWorktrees,
+      debug: opts.debug,
     });
 
     // Initialize database and save the new run
@@ -98,6 +100,13 @@ async function main() {
     createDatabase(dbPath);
     saveRun(state);
     console.log(`Initialized new run: ${state.runId}`);
+  }
+
+  // Initialize debug tracer
+  const tracer = createTracer(opts.debug, stateDir);
+  if (opts.debug) {
+    await tracer.init(state.runId, specPath, state.effort);
+    console.log(`Debug tracing enabled: ${stateDir}/debug/${state.runId}/`);
   }
 
   console.log(`Phase: ${state.phase}`);
@@ -112,6 +121,7 @@ async function main() {
       onPhaseComplete: (phase, success) =>
         console.log(`Phase ${phase} ${success ? 'completed' : 'failed'}`),
       onOutput: (text) => process.stdout.write(text),
+      tracer,
     });
 
     if (state.context.errors.length > 0) {
@@ -126,6 +136,7 @@ async function main() {
         onPhaseComplete: (phase, success) =>
           console.log(`Phase ${phase} ${success ? 'completed' : 'failed'}`),
         onOutput: (text) => process.stdout.write(text),
+        tracer,
       });
 
       if (state.context.errors.length > 0) {
@@ -170,6 +181,7 @@ async function main() {
         console.log(`Phase ${phase} ${success ? 'completed' : 'failed'}`),
       onOutput: (text) => process.stdout.write(text),
       onLoopOutput: (loopId, text) => console.log(`[${loopId.slice(0, 8)}] ${text}`),
+      tracer,
     });
 
     // Save state after each phase for resume support
@@ -197,6 +209,10 @@ async function main() {
   } else {
     console.log(`\nPhase complete. Next: ${state.phase}`);
     console.log('Run again to continue (or use outer Ralph loop)');
+  }
+
+  if (opts.debug) {
+    await tracer.finalize();
   }
 
   process.exit(exitCode);

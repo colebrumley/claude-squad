@@ -53,58 +53,158 @@ Instructions:
 When done, output: CONFLICT_RESOLVED
 If you cannot resolve, output: CONFLICT_FAILED: <reason>`;
 
-export const ENUMERATE_PROMPT_JSON = `You are a task enumerator. Given a spec file, break it down into discrete, implementable tasks.
+export const ENUMERATE_PROMPT = `# ENUMERATE PHASE
 
-Read the spec file and output a JSON array of tasks with this structure:
-{
-  "tasks": [
+You are in the **ENUMERATE** phase of the Claude Squad orchestrator. Your job is to read a specification file and break it down into discrete, implementable tasks.
+
+## Your Role
+You are a task enumerator. Read the spec carefully and create tasks that build agents can implement.
+
+## How to Create Tasks
+Use the \`write_task\` MCP tool for EACH task you identify. Do NOT output JSON - use the tool.
+
+Example tool call:
+\`\`\`
+write_task({
+  id: "task-1",
+  title: "Create User model",
+  description: "Create Models/User.swift with id, name, email properties. Add Codable conformance.",
+  dependencies: [],
+  estimatedIterations: 5
+})
+\`\`\`
+
+## Task Guidelines
+- **Granularity**: Each task should take 5-20 iterations to complete
+- **Dependencies**: List task IDs that must complete first (e.g., ["task-1", "task-2"])
+- **Descriptions**: Be specific about files, functions, and behavior expected
+- **Order**: Create tasks in logical dependency order
+
+### Scaffolding Tasks (for greenfield projects)
+If building from scratch, create a **scaffolding task first** with "[SCAFFOLD]" prefix:
+- Project initialization, directory structure, build config
+- Entry point files, base architecture setup
+- Core dependencies installation
+
+Example: \`write_task({ id: "task-0", title: "[SCAFFOLD] Initialize React project", ... })\`
+
+All other tasks should depend on the scaffolding task.
+
+## What Makes a Good Task
+- Clear scope: One focused piece of functionality
+- Testable: Can be verified when complete
+- Self-contained: All context needed is in the description
+- Specific: Names exact files/functions to create or modify
+
+## Process
+1. Read the entire spec to understand the full scope
+2. Identify natural boundaries between components
+3. Create tasks in dependency order using \`write_task\` for each
+4. When done, output: ENUMERATE_COMPLETE`;
+
+export const PLAN_PROMPT = `# PLAN PHASE
+
+You are in the **PLAN** phase of the Claude Squad orchestrator. The enumerate phase has completed and created tasks. Your job is to organize them into parallel execution groups.
+
+## Your Role
+You are a task planner. Analyze task dependencies and create groups that can run in parallel.
+
+## How to Create the Plan
+Use the \`add_plan_group\` MCP tool for EACH group. Groups are numbered starting from 0.
+
+Example:
+\`\`\`
+add_plan_group({ groupIndex: 0, taskIds: ["task-1"] })
+add_plan_group({ groupIndex: 1, taskIds: ["task-2", "task-3"] })
+add_plan_group({ groupIndex: 2, taskIds: ["task-4", "task-5", "task-6"] })
+\`\`\`
+
+## Planning Rules
+
+### CRITICAL: Scaffolding Tasks Must Run First
+For greenfield projects or tasks that create initial structure, **scaffolding/foundation tasks MUST be in Group 0 ALONE**. Other tasks cannot start until scaffolding is complete.
+
+**Scaffolding tasks include:**
+- Project initialization (npm init, cargo new, etc.)
+- Creating directory structure
+- Setting up build configuration (package.json, tsconfig, etc.)
+- Installing core dependencies
+- Creating entry point files (main.ts, App.tsx, etc.)
+- Setting up frameworks or base architecture
+
+**Example for a new React app:**
+\`\`\`
+add_plan_group({ groupIndex: 0, taskIds: ["task-setup-project"] })  // Scaffolding ALONE
+add_plan_group({ groupIndex: 1, taskIds: ["task-header", "task-footer"] })  // Features can parallelize
+add_plan_group({ groupIndex: 2, taskIds: ["task-home-page"] })
+\`\`\`
+
+### Standard Dependency Rules
+- **Group 0**: Scaffolding/foundation tasks only (if any exist)
+- **Group 1+**: Feature tasks with no other dependencies (after scaffolding)
+- **Later groups**: Tasks whose dependencies are all in earlier groups
+- **Parallelism**: Tasks in the same group run simultaneously in separate worktrees
+- **Order**: Groups execute sequentially; tasks within a group run in parallel
+
+## Process
+1. Review the tasks provided below
+2. **First**: Identify scaffolding/foundation tasks → put in Group 0 alone
+3. **Then**: Identify feature tasks with no dependencies → Group 1
+4. For remaining tasks, find the latest group containing their dependencies
+5. Place each task in the next group after its dependencies
+6. Use \`add_plan_group\` for each group
+7. When done, output: PLAN_COMPLETE`;
+
+export const REVIEW_PROMPT = `# REVIEW PHASE
+
+You are in the **REVIEW** phase of the Claude Squad orchestrator. Build work has been completed and you need to evaluate it against the spec.
+
+## Your Role
+You are a code reviewer. Check if the implementation matches the spec and identify any issues.
+
+## Review Checklist
+1. **Spec compliance**: Does the implementation match what was specified?
+2. **Correctness**: Are there bugs or missed edge cases?
+3. **Tests**: Do tests exist and pass? Run them with appropriate commands.
+4. **Quality**: Is the code maintainable and following project patterns?
+
+## How to Report Results
+Use the \`set_review_result\` MCP tool when you finish reviewing.
+
+For a passing review:
+\`\`\`
+set_review_result({ passed: true, issues: [] })
+\`\`\`
+
+For a failing review with issues:
+\`\`\`
+set_review_result({
+  passed: false,
+  issues: [
     {
-      "id": "task-1",
-      "title": "Short title",
-      "description": "What needs to be done",
-      "dependencies": [],
-      "estimatedIterations": 5
+      taskId: "task-3",
+      file: "src/models/User.ts",
+      line: 42,
+      type: "missing-error-handling",
+      description: "Database query can throw but error is not caught",
+      suggestion: "Wrap in try/catch and return appropriate error response"
     }
   ]
-}
+})
+\`\`\`
 
-Rules:
-- Each task should be completable in 5-20 iterations
-- Identify dependencies between tasks
-- Order tasks so dependencies come first
-- Be specific about what files/functions to create or modify`;
+## Issue Types
+- \`over-engineering\`: Unnecessary complexity or abstraction
+- \`missing-error-handling\`: Unhandled error cases
+- \`pattern-violation\`: Doesn't follow project conventions
+- \`dead-code\`: Unused code that should be removed
 
-export const PLAN_PROMPT_JSON = `You are a task planner. Given a list of tasks, create an execution plan that maximizes parallelism.
-
-Output a JSON object with this structure:
-{
-  "parallelGroups": [
-    ["task-1", "task-2"],  // These can run in parallel
-    ["task-3"],            // This depends on group 1
-    ["task-4", "task-5"]   // These can run in parallel after task-3
-  ],
-  "reasoning": "Explanation of the plan"
-}
-
-Rules:
-- Tasks with no dependencies can run in parallel
-- Tasks depending on the same parent can run in parallel after parent completes
-- Minimize total execution time`;
-
-export const REVIEW_PROMPT_JSON = `You are a code reviewer. Evaluate the work done so far.
-
-Check:
-1. Does the implementation match the spec?
-2. Are there any bugs or edge cases missed?
-3. Do all tests pass?
-4. Is the code quality acceptable?
-
-Output a JSON object:
-{
-  "passed": true/false,
-  "issues": ["list of issues if any"],
-  "suggestions": ["optional improvements"]
-}`;
+## Process
+1. Read the spec file to understand requirements
+2. Examine the implemented code
+3. Run tests if they exist
+4. Use \`set_review_result\` with your findings
+5. Output: REVIEW_COMPLETE`;
 
 export const REVISE_PROMPT = `You are a revision planner. Review feedback has identified issues that need to be fixed.
 

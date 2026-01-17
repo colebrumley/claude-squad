@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { ENUMERATE_PROMPT_JSON } from '../../agents/prompts.js';
+import { ENUMERATE_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
+import { getDatabase } from '../../db/index.js';
+import type { DebugTracer } from '../../debug/index.js';
 import type { OrchestratorState, Task } from '../../types/index.js';
-import { extractJSON } from '../../utils/json-parser.js';
 
 // Task granularity bounds (Risk #5 mitigation)
 const MIN_ESTIMATED_ITERATIONS = 3;
@@ -48,18 +49,31 @@ export function validateTaskGranularity(tasks: Task[]): GranularityValidation {
   };
 }
 
-export function parseEnumerateOutput(output: string): Task[] {
-  // Use robust JSON parser (Risk #2 mitigation)
-  const parsed = extractJSON<{ tasks: any[] }>(output, ['tasks']);
+/**
+ * Load tasks from database after agent has written them via MCP tools.
+ */
+export function loadTasksFromDB(runId: string): Task[] {
+  const db = getDatabase();
+  const taskRows = db
+    .prepare('SELECT * FROM tasks WHERE run_id = ?')
+    .all(runId) as Array<{
+    id: string;
+    title: string;
+    description: string;
+    status: 'pending' | 'in_progress' | 'completed' | 'failed';
+    dependencies: string;
+    estimated_iterations: number;
+    assigned_loop_id: string | null;
+  }>;
 
-  return parsed.tasks.map((t: any) => ({
-    id: t.id,
-    title: t.title,
-    description: t.description,
-    status: 'pending' as const,
-    dependencies: t.dependencies || [],
-    estimatedIterations: t.estimatedIterations || 10,
-    assignedLoopId: null,
+  return taskRows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    dependencies: JSON.parse(row.dependencies),
+    estimatedIterations: row.estimated_iterations,
+    assignedLoopId: row.assigned_loop_id,
   }));
 }
 
@@ -70,20 +84,22 @@ export interface EnumerateResult {
 
 export async function executeEnumerate(
   state: OrchestratorState,
-  onOutput?: (text: string) => void
+  onOutput?: (text: string) => void,
+  tracer?: DebugTracer
 ): Promise<EnumerateResult> {
   const specContent = await readFile(state.specPath, 'utf-8');
   const dbPath = join(state.stateDir, 'state.db');
   const config = createAgentConfig('enumerate', process.cwd(), state.runId, dbPath);
+  const cwd = process.cwd();
 
-  const prompt = `${ENUMERATE_PROMPT_JSON}
+  const prompt = `${ENUMERATE_PROMPT}
 
 ## Spec File Content:
 ${specContent}`;
 
   let fullOutput = '';
   let costUsd = 0;
-  const cwd = process.cwd();
+  const startTime = Date.now();
 
   for await (const message of query({
     prompt,
@@ -91,6 +107,12 @@ ${specContent}`;
       cwd,
       allowedTools: config.allowedTools,
       maxTurns: config.maxTurns,
+      mcpServers: {
+        'sq-db': {
+          command: 'node',
+          args: [resolve(cwd, 'node_modules/.bin/sq-mcp'), state.runId, dbPath],
+        },
+      },
     },
   })) {
     if (message.type === 'assistant' && message.message?.content) {
@@ -106,8 +128,21 @@ ${specContent}`;
     }
   }
 
+  const durationMs = Date.now() - startTime;
+
+  await tracer?.logAgentCall({
+    phase: 'enumerate',
+    prompt,
+    response: fullOutput,
+    costUsd,
+    durationMs,
+  });
+
+  // Tasks are now in the database via MCP write_task calls
+  const tasks = loadTasksFromDB(state.runId);
+
   return {
-    tasks: parseEnumerateOutput(fullOutput),
+    tasks,
     costUsd,
   };
 }

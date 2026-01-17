@@ -8,6 +8,7 @@ import {
   checkPhaseCostLimit,
   formatCostExceededError,
 } from '../../costs/index.js';
+import type { DebugTracer } from '../../debug/index.js';
 import type { LoopManager } from '../../loops/manager.js';
 import { detectStuck, updateStuckIndicators } from '../../loops/stuck-detection.js';
 import type {
@@ -93,7 +94,8 @@ export interface BuildResult {
 export async function executeBuildIteration(
   state: OrchestratorState,
   loopManager: LoopManager,
-  onLoopOutput?: (loopId: string, text: string) => void
+  onLoopOutput?: (loopId: string, text: string) => void,
+  tracer?: DebugTracer
 ): Promise<BuildResult> {
   const graph = state.taskGraph!;
   const dbPath = join(state.stateDir, 'state.db');
@@ -129,7 +131,7 @@ export async function executeBuildIteration(
 
   // Check for stuck loops
   for (const loop of loopManager.getActiveLoops()) {
-    const stuckResult = detectStuck(loop, { stuckThreshold: effortConfig.stuckThreshold });
+    const stuckResult = detectStuck(loop, { stuckThreshold: effortConfig.stuckThreshold }, tracer);
     if (stuckResult) {
       loopManager.updateLoopStatus(loop.loopId, 'stuck');
       return {
@@ -170,6 +172,7 @@ export async function executeBuildIteration(
     let hasError = false;
     let errorMessage: string | null = null;
     let costUsd = 0;
+    const startTime = Date.now();
 
     try {
       for await (const message of query({
@@ -193,6 +196,17 @@ export async function executeBuildIteration(
           costUsd = (message as any).total_cost_usd || 0;
         }
       }
+
+      const durationMs = Date.now() - startTime;
+      await tracer?.logAgentCall({
+        phase: 'build',
+        loopId: loop.loopId,
+        iteration: loop.iteration + 1,
+        prompt,
+        response: output,
+        costUsd,
+        durationMs,
+      });
 
       // Check for completion signal
       if (output.includes('TASK_COMPLETE')) {

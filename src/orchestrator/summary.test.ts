@@ -69,6 +69,7 @@ describe('Dry Run Summary', () => {
       stateDir: '/test/.sq',
       baseBranch: 'main',
       useWorktrees: true,
+      debug: false,
       pendingConflict: null,
     };
 
@@ -119,6 +120,7 @@ describe('Dry Run Summary', () => {
       stateDir: '/test/.sq',
       baseBranch: 'main',
       useWorktrees: true,
+      debug: false,
       pendingConflict: null,
     };
 

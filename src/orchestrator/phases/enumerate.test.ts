@@ -1,37 +1,11 @@
 import assert from 'node:assert';
 import { describe, test } from 'node:test';
-import { parseEnumerateOutput, validateTaskGranularity } from './enumerate.js';
+import { validateTaskGranularity } from './enumerate.js';
 
 describe('Enumerate Phase', () => {
-  test('parseEnumerateOutput extracts tasks from JSON', () => {
-    const output = `Some thinking...
-\`\`\`json
-{
-  "tasks": [
-    {
-      "id": "task-1",
-      "title": "Create greet function",
-      "description": "Implement greet(name) function",
-      "dependencies": [],
-      "estimatedIterations": 5
-    }
-  ]
-}
-\`\`\`
-Done!`;
-
-    const tasks = parseEnumerateOutput(output);
-
-    assert.strictEqual(tasks.length, 1);
-    assert.strictEqual(tasks[0].id, 'task-1');
-    assert.strictEqual(tasks[0].title, 'Create greet function');
-  });
-
-  test('parseEnumerateOutput handles invalid JSON gracefully', () => {
-    const output = 'No JSON here';
-
-    assert.throws(() => parseEnumerateOutput(output), /No valid JSON/);
-  });
+  // NOTE: Task creation now happens via MCP tools (write_task)
+  // The loadTasksFromDB function reads from the database after agent runs
+  // Integration tests should verify MCP tool usage
 
   // Risk #5 mitigation: Task granularity validation
   test('validateTaskGranularity warns on too-large tasks', () => {

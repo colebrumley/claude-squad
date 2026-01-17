@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { getEffortConfig } from '../config/effort.js';
 import { checkRunCostLimit, formatCostExceededError } from '../costs/index.js';
+import type { DebugTracer } from '../debug/index.js';
 import { LoopManager } from '../loops/manager.js';
 import type { CostTracking, OrchestratorState, Phase } from '../types/index.js';
 import { WorktreeManager } from '../worktrees/manager.js';
@@ -27,6 +28,7 @@ export interface OrchestratorCallbacks {
   onPhaseComplete?: (phase: Phase, success: boolean) => void;
   onOutput?: (text: string) => void;
   onLoopOutput?: (loopId: string, text: string) => void;
+  tracer?: DebugTracer;
 }
 
 export async function runOrchestrator(
@@ -53,11 +55,17 @@ export async function runOrchestrator(
   }
 
   callbacks.onPhaseStart?.(state.phase);
+  callbacks.tracer?.logPhaseStart(state.phase, {
+    tasks: state.tasks.length,
+    completedTasks: state.completedTasks.length,
+    activeLoops: state.activeLoops.length,
+    revisionCount: state.revisionCount,
+  });
 
   try {
     switch (state.phase) {
       case 'enumerate': {
-        const result = await executeEnumerate(state, callbacks.onOutput);
+        const result = await executeEnumerate(state, callbacks.onOutput, callbacks.tracer);
         state.tasks = result.tasks;
         updateCosts(state.costs, 'enumerate', result.costUsd);
         state.phaseHistory.push({
@@ -70,6 +78,12 @@ export async function runOrchestrator(
 
         // Check if we need to review
         if (effortConfig.reviewAfterEnumerate) {
+          callbacks.tracer?.logDecision(
+            'review_trigger',
+            { phase: 'enumerate', effortLevel: state.effort },
+            'review_scheduled',
+            'Effort config requires review after enumerate'
+          );
           state.pendingReview = true;
           state.reviewType = 'enumerate';
           state.phase = 'review';
@@ -80,7 +94,7 @@ export async function runOrchestrator(
       }
 
       case 'plan': {
-        const result = await executePlan(state, callbacks.onOutput);
+        const result = await executePlan(state, callbacks.onOutput, callbacks.tracer);
         state.taskGraph = result.taskGraph;
         updateCosts(state.costs, 'plan', result.costUsd);
         state.phaseHistory.push({
@@ -92,6 +106,12 @@ export async function runOrchestrator(
         });
 
         if (effortConfig.reviewAfterPlan) {
+          callbacks.tracer?.logDecision(
+            'review_trigger',
+            { phase: 'plan', effortLevel: state.effort },
+            'review_scheduled',
+            'Effort config requires review after plan'
+          );
           state.pendingReview = true;
           state.reviewType = 'plan';
           state.phase = 'review';
@@ -127,7 +147,7 @@ export async function runOrchestrator(
           loopManager.restoreLoop(loop);
         }
 
-        const result = await executeBuildIteration(state, loopManager, callbacks.onLoopOutput);
+        const result = await executeBuildIteration(state, loopManager, callbacks.onLoopOutput, callbacks.tracer);
 
         state.completedTasks = result.completedTasks;
         state.activeLoops = result.activeLoops;
@@ -142,13 +162,31 @@ export async function runOrchestrator(
           state.pendingConflict = result.pendingConflict;
           state.phase = 'conflict';
         } else if (result.stuck) {
+          callbacks.tracer?.logDecision(
+            'review_trigger',
+            { phase: 'build', reason: 'stuck' },
+            'revise_scheduled',
+            'Loop stuck, transitioning to revise phase'
+          );
           state.phase = 'revise';
         } else if (result.needsReview) {
+          callbacks.tracer?.logDecision(
+            'review_trigger',
+            { phase: 'build', reason: 'interval' },
+            'review_scheduled',
+            'Review interval reached during build'
+          );
           state.pendingReview = true;
           state.reviewType = 'build';
           state.phase = 'review';
         } else if (!getNextParallelGroup(state.taskGraph!, state.completedTasks)) {
           // All tasks complete
+          callbacks.tracer?.logDecision(
+            'review_trigger',
+            { phase: 'build', reason: 'all_complete' },
+            'review_scheduled',
+            'All tasks complete, scheduling final review'
+          );
           state.phase = 'review';
           state.reviewType = 'build';
           state.pendingReview = true;
@@ -162,7 +200,8 @@ export async function runOrchestrator(
           state,
           state.reviewType,
           effortConfig.reviewDepth,
-          callbacks.onOutput
+          callbacks.onOutput,
+          callbacks.tracer
         );
         updateCosts(state.costs, 'review', result.costUsd);
 
@@ -226,7 +265,7 @@ export async function runOrchestrator(
         }
 
         // Run the revise agent to analyze issues and create fix plan
-        const reviseResult = await executeRevise(state, callbacks.onOutput);
+        const reviseResult = await executeRevise(state, callbacks.onOutput, callbacks.tracer);
         updateCosts(state.costs, 'revise', reviseResult.costUsd);
 
         state.revisionCount++;
@@ -271,7 +310,8 @@ export async function runOrchestrator(
           state.stateDir,
           state.runId,
           state.stateDir,
-          callbacks.onOutput
+          callbacks.onOutput,
+          callbacks.tracer
         );
         updateCosts(state.costs, 'conflict', result.costUsd, loopId);
 
@@ -305,6 +345,17 @@ export async function runOrchestrator(
         // Nothing to do - orchestrator will exit
         break;
       }
+    }
+
+    // Log phase completion
+    const phaseEntry = state.phaseHistory[state.phaseHistory.length - 1];
+    if (phaseEntry) {
+      callbacks.tracer?.logPhaseComplete(
+        phaseEntry.phase,
+        phaseEntry.success,
+        phaseEntry.costUsd,
+        phaseEntry.summary
+      );
     }
 
     callbacks.onPhaseComplete?.(state.phase, true);

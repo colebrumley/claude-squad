@@ -1,42 +1,21 @@
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { PLAN_PROMPT_JSON } from '../../agents/prompts.js';
+import { PLAN_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
+import { getDatabase } from '../../db/index.js';
+import type { DebugTracer } from '../../debug/index.js';
 import type { OrchestratorState, Task, TaskGraph } from '../../types/index.js';
 
-export interface PlanOutput {
-  parallelGroups: string[][];
-  reasoning: string;
-}
+/**
+ * Load plan groups from database after agent has written them via MCP tools.
+ */
+export function loadPlanGroupsFromDB(runId: string): string[][] {
+  const db = getDatabase();
+  const planGroupRows = db
+    .prepare('SELECT * FROM plan_groups WHERE run_id = ? ORDER BY group_index')
+    .all(runId) as Array<{ task_ids: string }>;
 
-function truncateOutput(output: string, maxLength = 500): string {
-  if (output.length <= maxLength) return output;
-  return `${output.slice(0, maxLength)}... (${output.length - maxLength} more chars)`;
-}
-
-export function parsePlanOutput(output: string): PlanOutput {
-  const jsonMatch =
-    output.match(/```(?:json)?\s*([\s\S]*?)```/) ||
-    output.match(/(\{[\s\S]*"parallelGroups"[\s\S]*\})/);
-
-  if (!jsonMatch) {
-    throw new Error(
-      `Failed to parse: No JSON found in output. Agent output: ${truncateOutput(output)}`
-    );
-  }
-
-  try {
-    const parsed = JSON.parse(jsonMatch[1].trim());
-    return {
-      parallelGroups: parsed.parallelGroups,
-      reasoning: parsed.reasoning || '',
-    };
-  } catch (e) {
-    const errorMsg = e instanceof Error ? e.message : String(e);
-    throw new Error(
-      `Failed to parse JSON: ${errorMsg}. Matched content: ${truncateOutput(jsonMatch[1])}`
-    );
-  }
+  return planGroupRows.map((row) => JSON.parse(row.task_ids) as string[]);
 }
 
 export function buildTaskGraph(tasks: Task[], parallelGroups: string[][]): TaskGraph {
@@ -53,20 +32,22 @@ export interface PlanResult {
 
 export async function executePlan(
   state: OrchestratorState,
-  onOutput?: (text: string) => void
+  onOutput?: (text: string) => void,
+  tracer?: DebugTracer
 ): Promise<PlanResult> {
   const dbPath = join(state.stateDir, 'state.db');
-  const config = createAgentConfig('plan', process.cwd(), state.runId, dbPath);
+  const cwd = process.cwd();
+  const config = createAgentConfig('plan', cwd, state.runId, dbPath);
 
   const tasksJson = JSON.stringify(state.tasks, null, 2);
-  const prompt = `${PLAN_PROMPT_JSON}
+  const prompt = `${PLAN_PROMPT}
 
 ## Tasks to Plan:
 ${tasksJson}`;
 
   let fullOutput = '';
   let costUsd = 0;
-  const cwd = process.cwd();
+  const startTime = Date.now();
 
   for await (const message of query({
     prompt,
@@ -74,6 +55,12 @@ ${tasksJson}`;
       cwd,
       allowedTools: config.allowedTools,
       maxTurns: config.maxTurns,
+      mcpServers: {
+        'sq-db': {
+          command: 'node',
+          args: [resolve(cwd, 'node_modules/.bin/sq-mcp'), state.runId, dbPath],
+        },
+      },
     },
   })) {
     if (message.type === 'assistant' && message.message?.content) {
@@ -89,9 +76,21 @@ ${tasksJson}`;
     }
   }
 
-  const planOutput = parsePlanOutput(fullOutput);
+  const durationMs = Date.now() - startTime;
+
+  await tracer?.logAgentCall({
+    phase: 'plan',
+    prompt,
+    response: fullOutput,
+    costUsd,
+    durationMs,
+  });
+
+  // Plan groups are now in the database via MCP add_plan_group calls
+  const parallelGroups = loadPlanGroupsFromDB(state.runId);
+
   return {
-    taskGraph: buildTaskGraph(state.tasks, planOutput.parallelGroups),
+    taskGraph: buildTaskGraph(state.tasks, parallelGroups),
     costUsd,
   };
 }

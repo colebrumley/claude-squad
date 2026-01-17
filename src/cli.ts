@@ -15,7 +15,8 @@ export function createCLI(): Command {
     .option('--reset', 'Discard state and start fresh', false)
     .option('--dry-run', 'Show what would happen', false)
     .option('--tui', 'Run with TUI interface', false)
-    .option('--no-worktrees', 'Disable git worktree isolation', false);
+    .option('--no-worktrees', 'Disable git worktree isolation', false)
+    .option('--debug', 'Enable debug tracing to .sq/debug/<runId>/', false);
 
   return program;
 }

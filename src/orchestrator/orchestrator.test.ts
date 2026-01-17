@@ -47,6 +47,7 @@ function createTestState(overrides: Partial<OrchestratorState> = {}): Orchestrat
     stateDir: '.sq',
     baseBranch: 'main',
     useWorktrees: false,
+    debug: false,
     pendingConflict: null,
     ...overrides,
   };

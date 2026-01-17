@@ -22,6 +22,7 @@ export interface InitStateOptions {
   maxLoops: number;
   maxIterations: number;
   useWorktrees?: boolean;
+  debug?: boolean;
 }
 
 function getBaseBranch(): string | null {
@@ -88,6 +89,7 @@ export function initializeState(options: InitStateOptions): OrchestratorState {
     stateDir: options.stateDir,
     baseBranch,
     useWorktrees,
+    debug: options.debug ?? false,
     pendingConflict: null,
   };
 }
@@ -443,6 +445,7 @@ export function loadState(stateDir: string): OrchestratorState | null {
     stateDir,
     baseBranch: run.base_branch,
     useWorktrees: run.use_worktrees === 1,
+    debug: false, // Runtime option, not persisted
     pendingConflict: null,
   };
 }

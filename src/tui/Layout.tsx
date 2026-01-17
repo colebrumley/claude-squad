@@ -2,18 +2,31 @@ import { Box, Text } from 'ink';
 import type { LoopState, OrchestratorState } from '../types/index.js';
 import { Column } from './Column.js';
 import { Header } from './Header.js';
+import { StatusArea } from './StatusArea.js';
 
 interface LayoutProps {
   state: OrchestratorState;
   loops: LoopState[];
+  isLoading: boolean;
+  statusMessage: string;
+  phaseOutput: string[];
 }
 
-export function Layout({ state, loops }: LayoutProps) {
+export function Layout({ state, loops, isLoading, statusMessage, phaseOutput }: LayoutProps) {
   const activeLoops = loops.filter((l) => l.status === 'running' || l.status === 'pending');
+  // Minimize status area during build phase when loops are active
+  const minimizeStatus = state.phase === 'build' && activeLoops.length > 0;
 
   return (
     <Box flexDirection="column">
       <Header state={state} activeLoopCount={activeLoops.length} />
+      <StatusArea
+        phase={state.phase}
+        isLoading={isLoading}
+        statusMessage={statusMessage}
+        output={phaseOutput}
+        minimized={minimizeStatus}
+      />
 
       {/* Loop columns */}
       <Box>

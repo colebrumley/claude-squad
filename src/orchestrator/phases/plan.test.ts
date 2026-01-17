@@ -1,23 +1,11 @@
 import assert from 'node:assert';
 import { describe, test } from 'node:test';
-import { buildTaskGraph, parsePlanOutput } from './plan.js';
+import { buildTaskGraph } from './plan.js';
 
 describe('Plan Phase', () => {
-  test('parsePlanOutput extracts parallel groups', () => {
-    const output = `\`\`\`json
-{
-  "parallelGroups": [
-    ["task-1", "task-2"],
-    ["task-3"]
-  ],
-  "reasoning": "Tasks 1 and 2 have no dependencies"
-}
-\`\`\``;
-
-    const result = parsePlanOutput(output);
-
-    assert.deepStrictEqual(result.parallelGroups, [['task-1', 'task-2'], ['task-3']]);
-  });
+  // NOTE: Plan group creation now happens via MCP tools (add_plan_group)
+  // The loadPlanGroupsFromDB function reads from the database after agent runs
+  // Integration tests should verify MCP tool usage
 
   test('buildTaskGraph creates valid graph from tasks and groups', () => {
     const tasks = [

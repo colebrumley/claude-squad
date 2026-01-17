@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { REVISE_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
+import type { DebugTracer } from '../../debug/index.js';
 import type { OrchestratorState, ReviewIssue } from '../../types/index.js';
 
 export interface ReviseResult {
@@ -73,7 +74,8 @@ export function parseReviseOutput(output: string): ParsedReviseOutput | null {
 
 export async function executeRevise(
   state: OrchestratorState,
-  onOutput?: (text: string) => void
+  onOutput?: (text: string) => void,
+  tracer?: DebugTracer
 ): Promise<ReviseResult> {
   const dbPath = join(state.stateDir, 'state.db');
   const config = createAgentConfig('revise', process.cwd(), state.runId, dbPath);
@@ -96,6 +98,7 @@ export async function executeRevise(
 
   let fullOutput = '';
   let costUsd = 0;
+  const startTime = Date.now();
 
   const cwd = process.cwd();
 
@@ -120,6 +123,16 @@ export async function executeRevise(
         costUsd = (message as any).total_cost_usd || 0;
       }
     }
+
+    const durationMs = Date.now() - startTime;
+
+    await tracer?.logAgentCall({
+      phase: 'revise',
+      prompt,
+      response: fullOutput,
+      costUsd,
+      durationMs,
+    });
 
     // Check for completion signal
     if (!fullOutput.includes('REVISE_COMPLETE')) {

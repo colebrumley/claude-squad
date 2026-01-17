@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { CONFLICT_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
+import type { DebugTracer } from '../../debug/index.js';
 import type { Task } from '../../types/index.js';
 
 export interface ConflictResult {
@@ -16,7 +17,8 @@ export async function resolveConflict(
   repoDir: string,
   runId: string,
   stateDir: string,
-  onOutput?: (text: string) => void
+  onOutput?: (text: string) => void,
+  tracer?: DebugTracer
 ): Promise<ConflictResult> {
   const dbPath = join(stateDir, 'state.db');
   const config = createAgentConfig('conflict', repoDir, runId, dbPath);
@@ -28,6 +30,7 @@ export async function resolveConflict(
 
   let output = '';
   let costUsd = 0;
+  const startTime = Date.now();
 
   try {
     for await (const message of query({
@@ -50,6 +53,16 @@ export async function resolveConflict(
         costUsd = (message as any).total_cost_usd || 0;
       }
     }
+
+    const durationMs = Date.now() - startTime;
+
+    await tracer?.logAgentCall({
+      phase: 'conflict',
+      prompt,
+      response: output,
+      costUsd,
+      durationMs,
+    });
 
     if (output.includes('CONFLICT_RESOLVED')) {
       return { resolved: true, costUsd };

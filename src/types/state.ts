@@ -86,6 +86,9 @@ export interface OrchestratorState {
   baseBranch: string | null; // null if not a git repo
   useWorktrees: boolean;
 
+  // Debug tracing
+  debug: boolean;
+
   // Conflict resolution
   pendingConflict: {
     loopId: string;

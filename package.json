@@ -28,8 +28,6 @@
     "prepublishOnly": "npm run build",
     "dev": "tsx src/index.ts",
     "test": "tsx --test $(find src -name '*.test.ts')",
-    "test:prompts": "tsx scripts/test-prompts.ts",
-    "eval": "tsx src/evals/index.ts",
     "lint": "biome lint ./src",
     "format": "biome format ./src --write",
     "format:check": "biome format ./src",

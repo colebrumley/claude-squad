@@ -106,6 +106,7 @@ export const OrchestratorStateSchema = z.object({
   stateDir: z.string(),
   baseBranch: z.string().nullable(),
   useWorktrees: z.boolean(),
+  debug: z.boolean(),
   pendingConflict: z
     .object({
       loopId: z.string(),

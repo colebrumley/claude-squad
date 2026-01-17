@@ -1,7 +1,9 @@
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createAgentConfig } from '../../agents/spawn.js';
 import type { EffortConfig } from '../../config/effort.js';
+import { getDatabase } from '../../db/index.js';
+import type { DebugTracer } from '../../debug/index.js';
 import type {
   OrchestratorState,
   ReviewIssue,
@@ -16,105 +18,68 @@ export interface ReviewResult {
   costUsd: number;
 }
 
-interface ParsedReviewOutput {
-  passed: boolean;
-  issues: ReviewIssue[];
-  suggestions: string[];
-}
+/**
+ * Load review results from database after agent has written them via MCP set_review_result.
+ */
+export function loadReviewResultFromDB(runId: string): { passed: boolean; issues: ReviewIssue[] } {
+  const db = getDatabase();
 
-function normalizeIssue(issue: unknown): ReviewIssue {
-  if (typeof issue === 'string') {
-    // Legacy format: convert string to structured issue
-    return {
-      taskId: '',
-      file: 'unknown',
-      type: 'pattern-violation' as ReviewIssueType,
-      description: issue,
-      suggestion: 'Review and fix this issue',
-    };
-  }
+  // Load review issues
+  const issueRows = db
+    .prepare('SELECT * FROM review_issues WHERE run_id = ?')
+    .all(runId) as Array<{
+    task_id: string;
+    file: string;
+    line: number | null;
+    type: ReviewIssueType;
+    description: string;
+    suggestion: string;
+  }>;
 
-  // Structured format
-  const obj = issue as Record<string, unknown>;
-  return {
-    taskId: '',
-    file: (obj.file as string) || 'unknown',
-    line: obj.line as number | undefined,
-    type: (obj.type as ReviewIssueType) || 'pattern-violation',
-    description: (obj.description as string) || 'Unknown issue',
-    suggestion: (obj.suggestion as string) || 'Review and fix',
-  };
-}
+  const issues: ReviewIssue[] = issueRows.map((row) => ({
+    taskId: row.task_id,
+    file: row.file,
+    line: row.line ?? undefined,
+    type: row.type,
+    description: row.description,
+    suggestion: row.suggestion,
+  }));
 
-function truncateOutput(output: string, maxLength = 500): string {
-  if (output.length <= maxLength) return output;
-  return `${output.slice(0, maxLength)}... (${output.length - maxLength} more chars)`;
-}
+  // Check if review passed (no issues = passed)
+  // The set_review_result MCP tool clears pending_review, so we check issues
+  const passed = issues.length === 0;
 
-export function parseReviewOutput(output: string): ParsedReviewOutput {
-  const jsonMatch =
-    output.match(/```(?:json)?\s*([\s\S]*?)```/) || output.match(/(\{[\s\S]*"passed"[\s\S]*\})/);
-
-  if (!jsonMatch) {
-    return {
-      passed: false,
-      issues: [
-        {
-          taskId: '',
-          file: 'unknown',
-          type: 'pattern-violation',
-          description: `Failed to parse review output: no JSON block found. Agent output: ${truncateOutput(output)}`,
-          suggestion: 'Check agent output format',
-        },
-      ],
-      suggestions: [],
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(jsonMatch[1].trim());
-    const rawIssues = parsed.issues ?? [];
-
-    return {
-      passed: parsed.passed ?? false,
-      issues: rawIssues.map((issue: unknown) => normalizeIssue(issue)),
-      suggestions: parsed.suggestions ?? [],
-    };
-  } catch (e) {
-    const errorMsg = e instanceof Error ? e.message : String(e);
-    return {
-      passed: false,
-      issues: [
-        {
-          taskId: '',
-          file: 'unknown',
-          type: 'pattern-violation',
-          description: `Failed to parse review JSON: ${errorMsg}. Matched content: ${truncateOutput(jsonMatch[1])}`,
-          suggestion: 'Check JSON syntax',
-        },
-      ],
-      suggestions: [],
-    };
-  }
+  return { passed, issues };
 }
 
 export function getReviewPrompt(depth: EffortConfig['reviewDepth']): string {
-  const base = `You are a code reviewer. Evaluate the work done.
+  const mcpInstructions = `
+## How to Report Results
+Use the \`set_review_result\` MCP tool when you finish reviewing.
 
-Output a JSON object:
-{
-  "passed": true/false,
-  "issues": [
+For a passing review:
+\`\`\`
+set_review_result({ passed: true, issues: [] })
+\`\`\`
+
+For a failing review with issues:
+\`\`\`
+set_review_result({
+  passed: false,
+  issues: [
     {
-      "file": "path/to/file.ts",
-      "line": 42,
-      "type": "over-engineering|missing-error-handling|pattern-violation|dead-code",
-      "description": "What's wrong",
-      "suggestion": "How to fix it"
+      taskId: "task-3",
+      file: "src/models/User.ts",
+      line: 42,
+      type: "missing-error-handling",
+      description: "Database query can throw but error is not caught",
+      suggestion: "Wrap in try/catch and return appropriate error response"
     }
-  ],
-  "suggestions": ["optional improvements"]
-}`;
+  ]
+})
+\`\`\`
+
+Issue types: over-engineering, missing-error-handling, pattern-violation, dead-code`;
 
   const qualityChecks = `
 **Check for these quality issues:**
@@ -127,23 +92,36 @@ For each issue, specify the file, line number, what's wrong, and how to fix it.`
 
   switch (depth) {
     case 'shallow':
-      return `${base}
+      return `# REVIEW PHASE
+
+You are in the **REVIEW** phase. Evaluate the work done so far.
+${mcpInstructions}
 
 Perform a basic review:
 - Do tests pass?
-- Are there obvious bugs?`;
+- Are there obvious bugs?
+
+When done, output: REVIEW_COMPLETE`;
 
     case 'standard':
-      return `${base}
+      return `# REVIEW PHASE
+
+You are in the **REVIEW** phase. Evaluate the work done so far.
+${mcpInstructions}
 ${qualityChecks}
 
 Perform a standard review:
 - Do tests pass?
 - Does the code match the spec?
-- Are there bugs or edge cases?`;
+- Are there bugs or edge cases?
+
+When done, output: REVIEW_COMPLETE`;
 
     case 'deep':
-      return `${base}
+      return `# REVIEW PHASE
+
+You are in the **REVIEW** phase. Evaluate the work done so far.
+${mcpInstructions}
 ${qualityChecks}
 
 Perform a comprehensive review:
@@ -151,10 +129,15 @@ Perform a comprehensive review:
 - Does implementation match spec?
 - Are edge cases handled?
 - Is error handling adequate?
-- Is the approach optimal?`;
+- Is the approach optimal?
+
+When done, output: REVIEW_COMPLETE`;
 
     case 'comprehensive':
-      return `${base}
+      return `# REVIEW PHASE
+
+You are in the **REVIEW** phase. Evaluate the work done so far.
+${mcpInstructions}
 ${qualityChecks}
 
 Perform an exhaustive review:
@@ -164,7 +147,9 @@ Perform an exhaustive review:
 - Performance analysis
 - Edge case coverage
 - Code quality assessment
-- Documentation completeness`;
+- Documentation completeness
+
+When done, output: REVIEW_COMPLETE`;
   }
 }
 
@@ -172,10 +157,12 @@ export async function executeReview(
   state: OrchestratorState,
   reviewType: ReviewType,
   depth: EffortConfig['reviewDepth'],
-  onOutput?: (text: string) => void
+  onOutput?: (text: string) => void,
+  tracer?: DebugTracer
 ): Promise<ReviewResult> {
   const dbPath = join(state.stateDir, 'state.db');
-  const config = createAgentConfig('review', process.cwd(), state.runId, dbPath);
+  const cwd = process.cwd();
+  const config = createAgentConfig('review', cwd, state.runId, dbPath);
 
   let context = '';
   switch (reviewType) {
@@ -207,7 +194,7 @@ File: ${state.specPath}`;
 
   let fullOutput = '';
   let costUsd = 0;
-  const cwd = process.cwd();
+  const startTime = Date.now();
 
   for await (const message of query({
     prompt,
@@ -215,6 +202,12 @@ File: ${state.specPath}`;
       cwd,
       allowedTools: config.allowedTools,
       maxTurns: config.maxTurns,
+      mcpServers: {
+        'sq-db': {
+          command: 'node',
+          args: [resolve(cwd, 'node_modules/.bin/sq-mcp'), state.runId, dbPath],
+        },
+      },
     },
   })) {
     if (message.type === 'assistant' && message.message?.content) {
@@ -230,9 +223,23 @@ File: ${state.specPath}`;
     }
   }
 
-  const parsed = parseReviewOutput(fullOutput);
+  const durationMs = Date.now() - startTime;
+
+  await tracer?.logAgentCall({
+    phase: 'review',
+    prompt,
+    response: fullOutput,
+    costUsd,
+    durationMs,
+  });
+
+  // Review result is now in the database via MCP set_review_result call
+  const { passed, issues } = loadReviewResultFromDB(state.runId);
+
   return {
-    ...parsed,
+    passed,
+    issues,
+    suggestions: [],
     costUsd,
   };
 }
