@@ -46,6 +46,44 @@ describe('Loop Manager', () => {
     assert.strictEqual(active.length, 1);
     assert.strictEqual(active[0].loopId, loop1.loopId);
   });
+
+  test('restoreLoop restores loop from persisted state', () => {
+    const manager = new LoopManager({ maxLoops: 4, maxIterations: 20, reviewInterval: 5 });
+
+    const persistedLoop = {
+      loopId: 'restored-loop-123',
+      taskIds: ['t1', 't2'],
+      iteration: 5,
+      maxIterations: 20,
+      reviewInterval: 5,
+      lastReviewAt: 3,
+      status: 'running' as const,
+      stuckIndicators: {
+        sameErrorCount: 1,
+        noProgressCount: 0,
+        lastError: 'some error',
+        lastFileChangeIteration: 4,
+      },
+      output: ['line1', 'line2'],
+      worktreePath: '/path/to/worktree',
+    };
+
+    manager.restoreLoop(persistedLoop);
+
+    const restored = manager.getLoop('restored-loop-123');
+    assert.ok(restored);
+    assert.strictEqual(restored.loopId, 'restored-loop-123');
+    assert.deepStrictEqual(restored.taskIds, ['t1', 't2']);
+    assert.strictEqual(restored.iteration, 5);
+    assert.strictEqual(restored.status, 'running');
+    assert.strictEqual(restored.stuckIndicators.sameErrorCount, 1);
+    assert.strictEqual(restored.worktreePath, '/path/to/worktree');
+
+    // Verify it's counted in active loops
+    const active = manager.getActiveLoops();
+    assert.strictEqual(active.length, 1);
+    assert.strictEqual(active[0].loopId, 'restored-loop-123');
+  });
 });
 
 describe('LoopManager with worktrees', () => {

@@ -86,7 +86,7 @@ export async function runOrchestrator(
 
         // Restore active loops from state
         for (const loop of state.activeLoops) {
-          // Re-create in manager (simplified - in real impl would restore fully)
+          loopManager.restoreLoop(loop);
         }
 
         const result = await executeBuildIteration(

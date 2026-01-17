@@ -122,4 +122,13 @@ export class LoopManager {
       }
     }
   }
+
+  /**
+   * Restore a loop from persisted state (used when resuming BUILD phase).
+   * This allows the orchestrator to restore loops that were active before
+   * the process was interrupted.
+   */
+  restoreLoop(loop: LoopState): void {
+    this.loops.set(loop.loopId, loop);
+  }
 }
