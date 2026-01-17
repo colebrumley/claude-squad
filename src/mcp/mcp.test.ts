@@ -27,7 +27,7 @@ describe('MCP Server', () => {
   });
 
   test('createMCPServer returns a server instance', () => {
-    const server = createMCPServer('test-run');
+    const server = createMCPServer('test-run', join(tempDir, 'state.db'));
     assert.ok(server);
   });
 

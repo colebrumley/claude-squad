@@ -12,4 +12,4 @@ if (!runId) {
 }
 
 createDatabase(dbPath);
-startMCPServer(runId).catch(console.error);
+startMCPServer(runId, dbPath).catch(console.error);

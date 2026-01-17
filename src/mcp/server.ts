@@ -1,3 +1,5 @@
+import { appendFileSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -16,7 +18,42 @@ import {
   WriteTaskSchema,
 } from './tools.js';
 
-export function createMCPServer(runId: string) {
+function createMcpLogger(dbPath: string, runId: string) {
+  // Derive debug dir from dbPath: .sq/state.db -> .sq/debug/<runId>/mcp-calls.jsonl
+  const stateDir = dirname(dbPath);
+  const debugDir = join(stateDir, 'debug', runId);
+  const logPath = join(debugDir, 'mcp-calls.jsonl');
+
+  return {
+    log(
+      tool: string,
+      input: Record<string, unknown>,
+      result: Record<string, unknown>,
+      durationMs: number
+    ) {
+      // Only log if debug dir exists (debug mode is enabled)
+      if (!existsSync(debugDir)) return;
+
+      const entry = JSON.stringify({
+        timestamp: new Date().toISOString(),
+        tool,
+        input,
+        result,
+        durationMs,
+      });
+
+      try {
+        appendFileSync(logPath, `${entry}\n`);
+      } catch {
+        // Ignore write errors
+      }
+    },
+  };
+}
+
+export function createMCPServer(runId: string, dbPath: string) {
+  const mcpLogger = createMcpLogger(dbPath, runId);
+
   const server = new Server(
     { name: 'claude-squad', version: '1.0.0' },
     { capabilities: { tools: {} } }
@@ -232,6 +269,9 @@ export function createMCPServer(runId: string) {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     const db = getDatabase();
+    const startTime = Date.now();
+
+    let result: { content: Array<{ type: string; text: string }> };
 
     switch (name) {
       case 'write_task': {
@@ -247,7 +287,8 @@ export function createMCPServer(runId: string) {
           JSON.stringify(task.dependencies),
           task.estimatedIterations
         );
-        return { content: [{ type: 'text', text: `Task ${task.id} created` }] };
+        result = { content: [{ type: 'text', text: `Task ${task.id} created` }] };
+        break;
       }
 
       case 'complete_task': {
@@ -255,7 +296,8 @@ export function createMCPServer(runId: string) {
         db.prepare(`
           UPDATE tasks SET status = 'completed' WHERE id = ? AND run_id = ?
         `).run(taskId, runId);
-        return { content: [{ type: 'text', text: `Task ${taskId} completed` }] };
+        result = { content: [{ type: 'text', text: `Task ${taskId} completed` }] };
+        break;
       }
 
       case 'fail_task': {
@@ -268,7 +310,8 @@ export function createMCPServer(runId: string) {
           INSERT INTO context_entries (run_id, entry_type, content)
           VALUES (?, 'error', ?)
         `).run(runId, `Task ${taskId} failed: ${reason}`);
-        return { content: [{ type: 'text', text: `Task ${taskId} marked as failed` }] };
+        result = { content: [{ type: 'text', text: `Task ${taskId} marked as failed` }] };
+        break;
       }
 
       case 'add_plan_group': {
@@ -277,7 +320,8 @@ export function createMCPServer(runId: string) {
           INSERT INTO plan_groups (run_id, group_index, task_ids)
           VALUES (?, ?, ?)
         `).run(runId, group.groupIndex, JSON.stringify(group.taskIds));
-        return { content: [{ type: 'text', text: `Plan group ${group.groupIndex} added` }] };
+        result = { content: [{ type: 'text', text: `Plan group ${group.groupIndex} added` }] };
+        break;
       }
 
       case 'update_loop_status': {
@@ -285,7 +329,8 @@ export function createMCPServer(runId: string) {
         db.prepare(`
           UPDATE loops SET status = ?, last_error = ? WHERE id = ?
         `).run(update.status, update.error || null, update.loopId);
-        return { content: [{ type: 'text', text: `Loop ${update.loopId} updated` }] };
+        result = { content: [{ type: 'text', text: `Loop ${update.loopId} updated` }] };
+        break;
       }
 
       case 'record_cost': {
@@ -304,9 +349,10 @@ export function createMCPServer(runId: string) {
           VALUES (?, ?, ?)
           ON CONFLICT(run_id, phase) DO UPDATE SET cost_usd = cost_usd + excluded.cost_usd
         `).run(runId, phase, costUsd);
-        return {
+        result = {
           content: [{ type: 'text', text: `Cost $${costUsd} recorded for phase ${phase}` }],
         };
+        break;
       }
 
       case 'add_context': {
@@ -315,7 +361,8 @@ export function createMCPServer(runId: string) {
           INSERT INTO context_entries (run_id, entry_type, content)
           VALUES (?, ?, ?)
         `).run(runId, ctx.type, ctx.content);
-        return { content: [{ type: 'text', text: `Context ${ctx.type} added` }] };
+        result = { content: [{ type: 'text', text: `Context ${ctx.type} added` }] };
+        break;
       }
 
       case 'set_review_result': {
@@ -343,7 +390,7 @@ export function createMCPServer(runId: string) {
         db.prepare(`
           UPDATE runs SET pending_review = 0 WHERE id = ?
         `).run(runId);
-        return {
+        result = {
           content: [
             {
               type: 'text',
@@ -351,6 +398,7 @@ export function createMCPServer(runId: string) {
             },
           ],
         };
+        break;
       }
 
       case 'create_loop': {
@@ -374,11 +422,12 @@ export function createMCPServer(runId: string) {
             UPDATE tasks SET assigned_loop_id = ? WHERE id = ? AND run_id = ?
           `).run(loopId, taskId, runId);
         }
-        return {
+        result = {
           content: [
             { type: 'text', text: `Loop ${loopId} created with ${loop.taskIds.length} tasks` },
           ],
         };
+        break;
       }
 
       case 'persist_loop_state': {
@@ -401,7 +450,7 @@ export function createMCPServer(runId: string) {
           state.lastFileChangeIteration ?? null,
           state.loopId
         );
-        return {
+        result = {
           content: [
             {
               type: 'text',
@@ -409,6 +458,7 @@ export function createMCPServer(runId: string) {
             },
           ],
         };
+        break;
       }
 
       case 'record_phase_cost': {
@@ -423,19 +473,25 @@ export function createMCPServer(runId: string) {
           VALUES (?, ?, ?)
           ON CONFLICT(run_id, phase) DO UPDATE SET cost_usd = cost_usd + excluded.cost_usd
         `).run(runId, phase, costUsd);
-        return { content: [{ type: 'text', text: `Phase ${phase} cost $${costUsd} recorded` }] };
+        result = { content: [{ type: 'text', text: `Phase ${phase} cost $${costUsd} recorded` }] };
+        break;
       }
 
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
+
+    const durationMs = Date.now() - startTime;
+    mcpLogger.log(name, args as Record<string, unknown>, { success: true }, durationMs);
+
+    return result;
   });
 
   return server;
 }
 
-export async function startMCPServer(runId: string) {
-  const server = createMCPServer(runId);
+export async function startMCPServer(runId: string, dbPath: string) {
+  const server = createMCPServer(runId, dbPath);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
