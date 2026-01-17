@@ -11,6 +11,7 @@ export interface CLIOptions {
   reset: boolean;
   dryRun: boolean;
   tui: boolean;
+  noWorktrees: boolean;
 }
 
 export function parseArgs(args: string[]): CLIOptions {
@@ -27,7 +28,8 @@ export function parseArgs(args: string[]): CLIOptions {
     .option('--resume', 'Resume existing run', false)
     .option('--reset', 'Discard state and start fresh', false)
     .option('--dry-run', 'Show what would happen', false)
-    .option('--tui', 'Run with TUI interface', false);
+    .option('--tui', 'Run with TUI interface', false)
+    .option('--no-worktrees', 'Disable git worktree isolation', false);
 
   program.parse(['node', 'c2', ...args]);
   const opts = program.opts();
@@ -42,6 +44,7 @@ export function parseArgs(args: string[]): CLIOptions {
     reset: opts.reset,
     dryRun: opts.dryRun,
     tui: opts.tui,
+    noWorktrees: opts.noWorktrees ?? false,
   };
 }
 
@@ -59,7 +62,8 @@ export function createCLI(): Command {
     .option('--resume', 'Resume existing run', false)
     .option('--reset', 'Discard state and start fresh', false)
     .option('--dry-run', 'Show what would happen', false)
-    .option('--tui', 'Run with TUI interface', false);
+    .option('--tui', 'Run with TUI interface', false)
+    .option('--no-worktrees', 'Disable git worktree isolation', false);
 
   return program;
 }

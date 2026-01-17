@@ -2,7 +2,7 @@
 import { resolve } from 'node:path';
 import { access } from 'node:fs/promises';
 import { createCLI } from './cli.js';
-import { loadState, initializeState } from './state/index.js';
+import { initializeState } from './state/index.js';
 import { runOrchestrator, getExitCode } from './orchestrator/index.js';
 
 async function main() {
@@ -21,21 +21,16 @@ async function main() {
 
   const stateDir = resolve(opts.stateDir);
 
-  // Load or initialize state
-  let state = opts.reset ? null : await loadState(stateDir);
-
-  if (!state) {
-    state = initializeState({
-      specPath,
-      effort: opts.effort,
-      stateDir,
-      maxLoops: parseInt(opts.maxLoops, 10),
-      maxIterations: parseInt(opts.maxIterations, 10),
-    });
-    console.log(`Initialized new run: ${state.runId}`);
-  } else {
-    console.log(`Resuming run: ${state.runId}`);
-  }
+  // Initialize state
+  let state = initializeState({
+    specPath,
+    effort: opts.effort,
+    stateDir,
+    maxLoops: parseInt(opts.maxLoops, 10),
+    maxIterations: parseInt(opts.maxIterations, 10),
+    useWorktrees: !opts.noWorktrees,
+  });
+  console.log(`Initialized new run: ${state.runId}`);
 
   console.log(`Phase: ${state.phase}`);
   console.log(`Effort: ${state.effort}`);
@@ -60,15 +55,34 @@ async function main() {
     return; // TUI handles everything
   }
 
-  // Run one phase
-  state = await runOrchestrator(state, {
-    onPhaseStart: (phase) => console.log(`Starting phase: ${phase}`),
-    onPhaseComplete: (phase, success) =>
-      console.log(`Phase ${phase} ${success ? 'completed' : 'failed'}`),
-    onOutput: (text) => process.stdout.write(text),
-    onLoopOutput: (loopId, text) =>
-      console.log(`[${loopId.slice(0, 8)}] ${text}`),
-  });
+  // Run phases until complete or error
+  let iterations = 0;
+  const maxIterations = 50; // Safety limit
+  while (state.phase !== 'complete' && iterations < maxIterations) {
+    iterations++;
+    const prevCompletedCount = state.completedTasks.length;
+
+    state = await runOrchestrator(state, {
+      onPhaseStart: (phase) => console.log(`Starting phase: ${phase}`),
+      onPhaseComplete: (phase, success) =>
+        console.log(`Phase ${phase} ${success ? 'completed' : 'failed'}`),
+      onOutput: (text) => process.stdout.write(text),
+      onLoopOutput: (loopId, text) =>
+        console.log(`[${loopId.slice(0, 8)}] ${text}`),
+    });
+
+    // Break if stuck or errored
+    const exitCode = getExitCode(state);
+    if (exitCode !== 0) {
+      break;
+    }
+
+    // For build phase, check if we made progress
+    if (state.phase === 'build' && state.completedTasks.length === prevCompletedCount) {
+      // No progress made, may be stuck
+      console.log('No progress in build phase, checking for issues...');
+    }
+  }
 
   const exitCode = getExitCode(state);
 
