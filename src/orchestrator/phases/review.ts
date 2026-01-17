@@ -36,9 +36,26 @@ export function getReviewPrompt(depth: EffortConfig['reviewDepth']): string {
 Output a JSON object:
 {
   "passed": true/false,
-  "issues": ["list of issues if any"],
+  "issues": [
+    {
+      "file": "path/to/file.ts",
+      "line": 42,
+      "type": "over-engineering|missing-error-handling|pattern-violation|dead-code",
+      "description": "What's wrong",
+      "suggestion": "How to fix it"
+    }
+  ],
   "suggestions": ["optional improvements"]
 }`;
+
+  const qualityChecks = `
+**Check for these quality issues:**
+- Unnecessary abstractions: classes/functions used only once, premature generalization
+- Missing error handling: unhandled promise rejections, unchecked file/network operations, no input validation at boundaries
+- Pattern violations: code that doesn't match existing codebase conventions
+- Dead code: unused imports, unreachable branches, commented-out code
+
+For each issue, specify the file, line number, what's wrong, and how to fix it.`;
 
   switch (depth) {
     case 'shallow':
@@ -50,14 +67,16 @@ Perform a basic review:
 
     case 'standard':
       return `${base}
+${qualityChecks}
 
 Perform a standard review:
 - Do tests pass?
-- Does the code match the plan?
+- Does the code match the spec?
 - Are there bugs or edge cases?`;
 
     case 'deep':
       return `${base}
+${qualityChecks}
 
 Perform a comprehensive review:
 - Do tests pass?
@@ -68,6 +87,7 @@ Perform a comprehensive review:
 
     case 'comprehensive':
       return `${base}
+${qualityChecks}
 
 Perform an exhaustive review:
 - Do all tests pass?

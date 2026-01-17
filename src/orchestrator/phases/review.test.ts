@@ -40,4 +40,19 @@ describe('Review Phase', () => {
     assert.ok(shallow.includes('basic'));
     assert.ok(deep.includes('comprehensive'));
   });
+
+  test('getReviewPrompt includes quality checks at standard depth', () => {
+    const prompt = getReviewPrompt('standard');
+
+    assert.ok(prompt.includes('abstraction') || prompt.includes('over-engineer'), 'Should check for over-engineering');
+    assert.ok(prompt.includes('error handling') || prompt.includes('unhandled'), 'Should check error handling');
+  });
+
+  test('getReviewPrompt requests structured issues', () => {
+    const prompt = getReviewPrompt('standard');
+
+    assert.ok(prompt.includes('file'), 'Should request file location');
+    assert.ok(prompt.includes('line') || prompt.includes('location'), 'Should request line number');
+    assert.ok(prompt.includes('suggestion') || prompt.includes('fix'), 'Should request fix suggestion');
+  });
 });
