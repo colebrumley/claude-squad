@@ -44,13 +44,32 @@ Follow TDD:
 3. Refactor if needed
 4. Run tests to verify
 
-Use these tools as you work:
-- add_context(type: "discovery", content: "...") - Record things you learn
-- add_context(type: "decision", content: "...") - Record implementation decisions
-- add_context(type: "error", content: "...") - Record errors encountered
+When you have fully completed the task and all tests pass, output: TASK_COMPLETE
+If you are stuck and cannot proceed, output: TASK_STUCK: <reason>`;
 
-When complete, call complete_task(taskId: "<your-task-id>").
-If stuck, call update_loop_status(loopId: "<your-loop-id>", status: "stuck", error: "<reason>").`;
+export const CONFLICT_PROMPT = `You are resolving a git merge conflict.
+
+The following files have conflicts that need to be resolved:
+{{conflictFiles}}
+
+The original task was:
+{{taskDescription}}
+
+Instructions:
+1. Read each conflicting file to understand both sides of the conflict
+2. The conflict markers look like:
+   <<<<<<< HEAD
+   (code from base branch)
+   =======
+   (code from your branch)
+   >>>>>>> branch-name
+3. Edit each file to resolve the conflict by keeping the correct code
+4. Remove all conflict markers
+5. Run \`git add <file>\` for each resolved file
+6. Run \`git commit -m "resolve merge conflicts"\` to complete
+
+When done, output: CONFLICT_RESOLVED
+If you cannot resolve, output: CONFLICT_FAILED: <reason>`;
 
 export const REVIEW_PROMPT = `You are a code reviewer. Evaluate the work done so far.
 

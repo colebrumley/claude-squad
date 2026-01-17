@@ -21,6 +21,7 @@ const PHASE_TOOLS: Record<Phase, string[]> = {
   build: ['Read', 'Edit', 'Write', 'Bash', 'Glob', 'Grep'],
   review: ['Read', 'Glob', 'Grep', 'Bash'],
   revise: ['Read', 'Edit', 'Write', 'Bash', 'Glob', 'Grep'],
+  conflict: ['Read', 'Edit', 'Write', 'Bash', 'Glob', 'Grep'],
   complete: [],
 };
 
@@ -30,6 +31,7 @@ const PHASE_MAX_TURNS: Record<Phase, number> = {
   build: 100,
   review: 50,
   revise: 100,
+  conflict: 15,
   complete: 1,
 };
 

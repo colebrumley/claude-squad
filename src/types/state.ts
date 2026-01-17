@@ -2,7 +2,7 @@ import type { Task, TaskGraph } from './task.js';
 import type { LoopState } from './loop.js';
 
 export type EffortLevel = 'low' | 'medium' | 'high' | 'max';
-export type Phase = 'enumerate' | 'plan' | 'build' | 'review' | 'revise' | 'complete';
+export type Phase = 'enumerate' | 'plan' | 'build' | 'review' | 'revise' | 'conflict' | 'complete';
 export type ReviewType = 'enumerate' | 'plan' | 'build' | null;
 
 export interface PhaseResult {

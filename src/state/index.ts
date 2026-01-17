@@ -66,6 +66,7 @@ export function initializeState(options: InitStateOptions): OrchestratorState {
         build: 0,
         review: 0,
         revise: 0,
+        conflict: 0,
         complete: 0,
       },
       loopCosts: {},

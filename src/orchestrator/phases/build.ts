@@ -5,6 +5,7 @@ import { BUILD_PROMPT } from '../../agents/prompts.js';
 import { LoopManager } from '../../loops/manager.js';
 import { detectStuck, updateStuckIndicators } from '../../loops/stuck-detection.js';
 import { getEffortConfig } from '../../config/effort.js';
+import { resolveConflict } from './conflict.js';
 
 export function getNextParallelGroup(
   graph: TaskGraph,
@@ -70,7 +71,7 @@ export async function executeBuildIteration(
   if (nextGroup && canStartGroup(nextGroup, state.completedTasks, state.tasks)) {
     while (loopManager.canSpawnMore() && nextGroup.length > 0) {
       const taskId = nextGroup.shift()!;
-      const loop = loopManager.createLoop([taskId], state.tasks);
+      const loop = await loopManager.createLoop([taskId], state.tasks);
       loopManager.updateLoopStatus(loop.loopId, 'running');
     }
   }
@@ -112,6 +113,30 @@ Description: ${task.description}
 
       // Check for completion signal
       if (output.includes('TASK_COMPLETE')) {
+        // Merge worktree if using worktrees
+        const worktreeManager = loopManager.getWorktreeManager();
+        if (loop.worktreePath && worktreeManager) {
+          const mergeResult = await worktreeManager.merge(loop.loopId);
+
+          if (mergeResult.status === 'conflict') {
+            // Spawn conflict resolution agent
+            const conflictResult = await resolveConflict(
+              task,
+              mergeResult.conflictFiles,
+              config.cwd,
+              (text) => onLoopOutput?.(loop.loopId, text)
+            );
+
+            if (!conflictResult.resolved) {
+              loopManager.updateLoopStatus(loop.loopId, 'failed');
+              return { loopId: loop.loopId, taskId: task.id, completed: false };
+            }
+          }
+
+          // Cleanup worktree on successful merge
+          await worktreeManager.cleanup(loop.loopId);
+        }
+
         loopManager.updateLoopStatus(loop.loopId, 'completed');
         return { loopId: loop.loopId, taskId: task.id, completed: true };
       }
