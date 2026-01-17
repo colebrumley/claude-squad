@@ -1,6 +1,7 @@
 import { useApp, useInput } from 'ink';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { closeDatabase } from '../db/index.js';
+import type { DebugTracer } from '../debug/index.js';
 import { runOrchestrator } from '../orchestrator/index.js';
 import { saveRun } from '../state/index.js';
 import type { LoopState, OrchestratorState, Phase } from '../types/index.js';
@@ -29,9 +30,10 @@ function getPhaseStatusMessage(phase: Phase): string {
 
 interface AppProps {
   initialState: OrchestratorState;
+  tracer?: DebugTracer;
 }
 
-export function App({ initialState }: AppProps) {
+export function App({ initialState, tracer }: AppProps) {
   const { exit } = useApp();
   const [state, setState] = useState(initialState);
   const [loops, setLoops] = useState<LoopState[]>(initialState.activeLoops);
@@ -57,6 +59,7 @@ export function App({ initialState }: AppProps) {
       // Save current state before exiting
       try {
         saveRun(stateRef.current);
+        tracer?.finalize().catch(() => {});
         closeDatabase();
       } catch {
         // Ignore errors during shutdown - best effort save
@@ -71,13 +74,14 @@ export function App({ initialState }: AppProps) {
       process.off('SIGINT', handleShutdown);
       process.off('SIGTERM', handleShutdown);
     };
-  }, [exit]);
+  }, [exit, tracer]);
 
   useInput((input) => {
     if (input === 'q') {
       // Save state on graceful quit
       try {
         saveRun(state);
+        tracer?.finalize().catch(() => {});
         closeDatabase();
       } catch {
         // Ignore errors - best effort save
@@ -127,6 +131,7 @@ export function App({ initialState }: AppProps) {
           )
         );
       },
+      tracer,
     });
 
     // Update status for the new phase
@@ -138,7 +143,10 @@ export function App({ initialState }: AppProps) {
 
     setState(newState);
     setLoops(newState.activeLoops);
-  }, [state, running]);
+
+    // Save state after each phase for resume support (matches non-TUI behavior)
+    saveRun(newState);
+  }, [state, running, tracer]);
 
   useEffect(() => {
     if (running && state.phase !== 'complete') {

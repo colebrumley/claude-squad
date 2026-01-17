@@ -3,6 +3,7 @@ import type { Task, TaskGraph } from './task.js';
 
 export type EffortLevel = 'low' | 'medium' | 'high' | 'max';
 export type Phase = 'enumerate' | 'plan' | 'build' | 'review' | 'revise' | 'conflict' | 'complete';
+export type ModelTier = 'haiku' | 'sonnet' | 'opus';
 export type ReviewType = 'enumerate' | 'plan' | 'build' | null;
 
 export type ReviewIssueType =

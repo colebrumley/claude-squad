@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { ENUMERATE_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
+import { getEffortConfig, getModelId } from '../../config/effort.js';
 import { getDatabase } from '../../db/index.js';
 import type { DebugTracer } from '../../debug/index.js';
 import { MCP_SERVER_PATH } from '../../paths.js';
@@ -88,7 +89,9 @@ export async function executeEnumerate(
 ): Promise<EnumerateResult> {
   const specContent = await readFile(state.specPath, 'utf-8');
   const dbPath = join(state.stateDir, 'state.db');
-  const config = createAgentConfig('enumerate', process.cwd(), state.runId, dbPath);
+  const effortConfig = getEffortConfig(state.effort);
+  const model = getModelId(effortConfig.models.enumerate);
+  const config = createAgentConfig('enumerate', process.cwd(), state.runId, dbPath, model);
   const cwd = process.cwd();
 
   const prompt = `${ENUMERATE_PROMPT}
@@ -111,6 +114,7 @@ ${specContent}`;
       cwd,
       allowedTools: config.allowedTools,
       maxTurns: config.maxTurns,
+      model: config.model,
       mcpServers: {
         'sq-db': {
           command: 'node',

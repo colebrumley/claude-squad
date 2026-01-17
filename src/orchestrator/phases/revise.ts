@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { REVISE_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
+import { getEffortConfig, getModelId } from '../../config/effort.js';
 import type { DebugTracer } from '../../debug/index.js';
 import type { OrchestratorState, ReviewIssue } from '../../types/index.js';
 
@@ -78,7 +79,9 @@ export async function executeRevise(
   tracer?: DebugTracer
 ): Promise<ReviseResult> {
   const dbPath = join(state.stateDir, 'state.db');
-  const config = createAgentConfig('revise', process.cwd(), state.runId, dbPath);
+  const effortConfig = getEffortConfig(state.effort);
+  const model = getModelId(effortConfig.models.revise);
+  const config = createAgentConfig('revise', process.cwd(), state.runId, dbPath, model);
 
   // Format completed tasks for context
   const completedTasksInfo = state.completedTasks
@@ -114,6 +117,7 @@ export async function executeRevise(
         cwd,
         allowedTools: config.allowedTools,
         maxTurns: config.maxTurns,
+        model: config.model,
       },
     })) {
       if (message.type === 'assistant' && message.message?.content) {

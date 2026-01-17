@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { PLAN_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
+import { getEffortConfig, getModelId } from '../../config/effort.js';
 import { getDatabase } from '../../db/index.js';
 import type { DebugTracer } from '../../debug/index.js';
 import { MCP_SERVER_PATH } from '../../paths.js';
@@ -38,7 +39,9 @@ export async function executePlan(
 ): Promise<PlanResult> {
   const dbPath = join(state.stateDir, 'state.db');
   const cwd = process.cwd();
-  const config = createAgentConfig('plan', cwd, state.runId, dbPath);
+  const effortConfig = getEffortConfig(state.effort);
+  const model = getModelId(effortConfig.models.plan);
+  const config = createAgentConfig('plan', cwd, state.runId, dbPath, model);
 
   const tasksJson = JSON.stringify(state.tasks, null, 2);
   const prompt = `${PLAN_PROMPT}
@@ -61,6 +64,7 @@ ${tasksJson}`;
       cwd,
       allowedTools: config.allowedTools,
       maxTurns: config.maxTurns,
+      model: config.model,
       mcpServers: {
         'sq-db': {
           command: 'node',

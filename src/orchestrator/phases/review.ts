@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createAgentConfig } from '../../agents/spawn.js';
-import type { EffortConfig } from '../../config/effort.js';
+import { type EffortConfig, getEffortConfig, getModelId } from '../../config/effort.js';
 import { getDatabase } from '../../db/index.js';
 import type { DebugTracer } from '../../debug/index.js';
 import { MCP_SERVER_PATH } from '../../paths.js';
@@ -71,7 +71,227 @@ export function loadReviewResultFromDB(runId: string): {
   return { passed, issues, interpretedIntent, intentSatisfied };
 }
 
-export function getReviewPrompt(depth: EffortConfig['reviewDepth']): string {
+/**
+ * Review prompt for ENUMERATE phase - reviewing tasks before planning.
+ * Checks if tasks are well-defined, complete, and aligned with spec intent.
+ */
+function getEnumerateReviewPrompt(depth: EffortConfig['reviewDepth']): string {
+  const mcpInstructions = `
+## How to Report Results
+Use the \`set_review_result\` MCP tool when you finish reviewing.
+
+**Required fields:**
+- \`interpretedIntent\`: In 1-2 sentences, what was the user actually trying to accomplish?
+- \`intentSatisfied\`: Do the enumerated tasks, if completed, satisfy this intent?
+- \`passed\`: Are the tasks well-defined and complete?
+- \`issues\`: Array of specific issues found
+
+For a passing review:
+\`\`\`
+set_review_result({
+  interpretedIntent: "User wants to add authentication so users can log in and maintain sessions",
+  intentSatisfied: true,
+  passed: true,
+  issues: []
+})
+\`\`\`
+
+For a failing review:
+\`\`\`
+set_review_result({
+  interpretedIntent: "User wants comprehensive error handling throughout the app",
+  intentSatisfied: false,
+  passed: false,
+  issues: [
+    {
+      taskId: "general",
+      file: "spec",
+      type: "spec-intent-mismatch",
+      description: "Tasks only cover happy path - no tasks for error states or edge cases",
+      suggestion: "Add tasks for: validation errors, network failures, empty states"
+    }
+  ]
+})
+\`\`\`
+
+Issue types: spec-intent-mismatch, missing-error-handling, over-engineering`;
+
+  const baseChecks = `
+**Check for these issues:**
+- Missing tasks: Are there requirements in the spec not covered by any task?
+- Vague tasks: Are task descriptions specific enough to implement?
+- Scope creep: Are there tasks that go beyond what the spec requests?
+- Missing edge cases: Does the spec imply error handling or edge cases not captured?`;
+
+  switch (depth) {
+    case 'shallow':
+      return `# ENUMERATE REVIEW PHASE
+
+You are reviewing the **enumerated tasks** before planning begins.
+
+${mcpInstructions}
+
+Perform a basic review:
+- Do the tasks cover the main requirements from the spec?
+- Are there obvious gaps?
+
+When done, output: REVIEW_COMPLETE`;
+
+    case 'standard':
+      return `# ENUMERATE REVIEW PHASE
+
+You are reviewing the **enumerated tasks** before planning begins.
+
+${mcpInstructions}
+${baseChecks}
+
+Perform a standard review:
+- Do tasks cover all spec requirements?
+- Are task descriptions clear and actionable?
+- Are there gaps or missing edge cases?
+
+When done, output: REVIEW_COMPLETE`;
+
+    case 'deep':
+    case 'comprehensive':
+      return `# ENUMERATE REVIEW PHASE
+
+You are reviewing the **enumerated tasks** before planning begins.
+
+${mcpInstructions}
+${baseChecks}
+
+Perform a comprehensive review:
+- Full spec coverage analysis
+- Task clarity and actionability
+- Edge case coverage
+- Appropriate task granularity (not too big, not too small)
+- Dependencies that might be missing
+
+When done, output: REVIEW_COMPLETE`;
+  }
+}
+
+/**
+ * Review prompt for PLAN phase - reviewing execution order before building.
+ * Checks if dependencies are correct and parallelization is appropriate.
+ */
+function getPlanReviewPrompt(depth: EffortConfig['reviewDepth']): string {
+  const mcpInstructions = `
+## How to Report Results
+Use the \`set_review_result\` MCP tool when you finish reviewing.
+
+**Required fields:**
+- \`interpretedIntent\`: In 1-2 sentences, what is the user trying to build?
+- \`intentSatisfied\`: Does the execution plan lead toward satisfying this intent?
+- \`passed\`: Is the plan logical and dependencies correct?
+- \`issues\`: Array of specific issues found
+
+For a passing review:
+\`\`\`
+set_review_result({
+  interpretedIntent: "User wants a working authentication system with login, logout, and session management",
+  intentSatisfied: true,
+  passed: true,
+  issues: []
+})
+\`\`\`
+
+For a failing review:
+\`\`\`
+set_review_result({
+  interpretedIntent: "User wants database migrations before API endpoints",
+  intentSatisfied: false,
+  passed: false,
+  issues: [
+    {
+      taskId: "task-3",
+      file: "plan",
+      type: "pattern-violation",
+      description: "API endpoint task scheduled before database schema task it depends on",
+      suggestion: "Move database schema task to an earlier parallel group"
+    }
+  ]
+})
+\`\`\`
+
+Issue types: pattern-violation, over-engineering, spec-intent-mismatch`;
+
+  const baseChecks = `
+**Check for these issues:**
+- Dependency errors: Are tasks scheduled before their dependencies?
+- Incorrect parallelization: Are tasks that depend on each other in the same parallel group?
+- Missing dependencies: Are there implicit dependencies not captured?
+- Inefficient ordering: Could the plan be more parallel without breaking dependencies?`;
+
+  switch (depth) {
+    case 'shallow':
+      return `# PLAN REVIEW PHASE
+
+You are reviewing the **execution plan** before building begins.
+
+The plan shows which tasks run in parallel groups and their execution order.
+
+${mcpInstructions}
+
+Perform a basic review:
+- Are there obvious dependency violations?
+- Does the order make sense?
+
+When done, output: REVIEW_COMPLETE`;
+
+    case 'standard':
+      return `# PLAN REVIEW PHASE
+
+You are reviewing the **execution plan** before building begins.
+
+The plan shows which tasks run in parallel groups and their execution order.
+
+${mcpInstructions}
+${baseChecks}
+
+Perform a standard review:
+- Are dependencies correctly ordered?
+- Is parallelization appropriate?
+- Are there tasks that should run earlier or later?
+
+When done, output: REVIEW_COMPLETE`;
+
+    case 'deep':
+    case 'comprehensive':
+      return `# PLAN REVIEW PHASE
+
+You are reviewing the **execution plan** before building begins.
+
+The plan shows which tasks run in parallel groups and their execution order.
+
+${mcpInstructions}
+${baseChecks}
+
+Perform a comprehensive review:
+- Full dependency analysis
+- Parallelization optimization
+- Risk assessment (which tasks are most likely to fail?)
+- Critical path identification
+- Potential merge conflict risks between parallel tasks
+
+When done, output: REVIEW_COMPLETE`;
+  }
+}
+
+export function getReviewPrompt(
+  depth: EffortConfig['reviewDepth'],
+  reviewType: 'enumerate' | 'plan' | 'build'
+): string {
+  // For enumerate and plan reviews, use specialized prompts
+  if (reviewType === 'enumerate') {
+    return getEnumerateReviewPrompt(depth);
+  }
+  if (reviewType === 'plan') {
+    return getPlanReviewPrompt(depth);
+  }
+
+  // Build review - the full code review prompt
   const intentAnalysis = `
 ## Intent Analysis (Do This First)
 
@@ -213,7 +433,9 @@ export async function executeReview(
 ): Promise<ReviewResult> {
   const dbPath = join(state.stateDir, 'state.db');
   const cwd = process.cwd();
-  const config = createAgentConfig('review', cwd, state.runId, dbPath);
+  const effortConfig = getEffortConfig(state.effort);
+  const model = getModelId(effortConfig.models.review);
+  const config = createAgentConfig('review', cwd, state.runId, dbPath, model);
 
   let context = '';
   switch (reviewType) {
@@ -235,7 +457,9 @@ export async function executeReview(
     }
   }
 
-  const prompt = `${getReviewPrompt(depth)}
+  // reviewType is validated by switch above; default to 'build' if somehow null
+  const effectiveReviewType = reviewType ?? 'build';
+  const prompt = `${getReviewPrompt(depth, effectiveReviewType)}
 
 ## Context:
 ${context}
@@ -258,6 +482,7 @@ File: ${state.specPath}`;
       cwd,
       allowedTools: config.allowedTools,
       maxTurns: config.maxTurns,
+      model: config.model,
       mcpServers: {
         'sq-db': {
           command: 'node',

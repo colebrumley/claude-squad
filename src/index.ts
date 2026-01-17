@@ -172,7 +172,9 @@ async function main() {
     const { App } = await import('./tui/App.js');
     const React = await import('react');
 
-    render(React.createElement(App, { initialState: state }));
+    render(
+      React.createElement(App, { initialState: state, tracer: opts.debug ? tracer : undefined })
+    );
     return; // TUI handles everything
   }
 

@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { BUILD_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
-import { getEffortConfig } from '../../config/effort.js';
+import { getEffortConfig, getModelId } from '../../config/effort.js';
 import {
   checkLoopCostLimit,
   checkPhaseCostLimit,
@@ -166,7 +166,8 @@ export async function executeBuildIteration(
 
     // Use worktree path if available, otherwise fall back to process.cwd()
     const loopCwd = loop.worktreePath || process.cwd();
-    const config = createAgentConfig('build', loopCwd, state.runId, dbPath);
+    const model = getModelId(effortConfig.models.build);
+    const config = createAgentConfig('build', loopCwd, state.runId, dbPath, model);
 
     let output = '';
     let hasError = false;
@@ -189,6 +190,7 @@ export async function executeBuildIteration(
           cwd: loopCwd,
           allowedTools: config.allowedTools,
           maxTurns: 10, // Single iteration limit
+          model: config.model,
         },
       })) {
         if (message.type === 'assistant' && message.message?.content) {

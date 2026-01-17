@@ -1,4 +1,18 @@
-import type { CostLimits, EffortLevel } from '../types/index.js';
+import type { CostLimits, EffortLevel, ModelTier, Phase } from '../types/index.js';
+
+// Model IDs for each tier
+const MODEL_IDS: Record<ModelTier, string> = {
+  haiku: 'claude-haiku-4-20250514',
+  sonnet: 'claude-sonnet-4-5-20250929',
+  opus: 'claude-opus-4-20250514',
+};
+
+export function getModelId(tier: ModelTier): string {
+  return MODEL_IDS[tier];
+}
+
+// Phases that use models (excludes 'complete' which doesn't run an agent)
+type AgentPhase = Exclude<Phase, 'complete'>;
 
 export interface EffortConfig {
   reviewAfterEnumerate: boolean;
@@ -10,6 +24,9 @@ export interface EffortConfig {
 
   // Cost limits (Risk #3 mitigation)
   costLimits: CostLimits;
+
+  // Model tiers per phase
+  models: Record<AgentPhase, ModelTier>;
 }
 
 const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
@@ -21,6 +38,14 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     stuckThreshold: 5,
     maxRevisions: 10,
     costLimits: { perLoopMaxUsd: 1.0, perPhaseMaxUsd: 2.0, perRunMaxUsd: 5.0 },
+    models: {
+      enumerate: 'haiku',
+      plan: 'haiku',
+      build: 'opus',
+      review: 'haiku',
+      revise: 'haiku',
+      conflict: 'sonnet',
+    },
   },
   medium: {
     reviewAfterEnumerate: false,
@@ -30,6 +55,14 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     stuckThreshold: 4,
     maxRevisions: 8,
     costLimits: { perLoopMaxUsd: 2.0, perPhaseMaxUsd: 5.0, perRunMaxUsd: 15.0 },
+    models: {
+      enumerate: 'sonnet',
+      plan: 'sonnet',
+      build: 'opus',
+      review: 'sonnet',
+      revise: 'sonnet',
+      conflict: 'sonnet',
+    },
   },
   high: {
     reviewAfterEnumerate: true,
@@ -39,6 +72,14 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     stuckThreshold: 3,
     maxRevisions: 5,
     costLimits: { perLoopMaxUsd: 5.0, perPhaseMaxUsd: 10.0, perRunMaxUsd: 30.0 },
+    models: {
+      enumerate: 'sonnet',
+      plan: 'opus',
+      build: 'opus',
+      review: 'opus',
+      revise: 'sonnet',
+      conflict: 'opus',
+    },
   },
   max: {
     reviewAfterEnumerate: true,
@@ -48,6 +89,14 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     stuckThreshold: 2,
     maxRevisions: 3,
     costLimits: { perLoopMaxUsd: 10.0, perPhaseMaxUsd: 25.0, perRunMaxUsd: 100.0 },
+    models: {
+      enumerate: 'opus',
+      plan: 'opus',
+      build: 'opus',
+      review: 'opus',
+      revise: 'opus',
+      conflict: 'opus',
+    },
   },
 };
 

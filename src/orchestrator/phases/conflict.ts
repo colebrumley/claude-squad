@@ -2,8 +2,9 @@ import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { CONFLICT_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
+import { getEffortConfig, getModelId } from '../../config/effort.js';
 import type { DebugTracer } from '../../debug/index.js';
-import type { Task } from '../../types/index.js';
+import type { EffortLevel, Task } from '../../types/index.js';
 
 export interface ConflictResult {
   resolved: boolean;
@@ -17,11 +18,14 @@ export async function resolveConflict(
   repoDir: string,
   runId: string,
   stateDir: string,
+  effort: EffortLevel,
   onOutput?: (text: string) => void,
   tracer?: DebugTracer
 ): Promise<ConflictResult> {
   const dbPath = join(stateDir, 'state.db');
-  const config = createAgentConfig('conflict', repoDir, runId, dbPath);
+  const effortConfig = getEffortConfig(effort);
+  const model = getModelId(effortConfig.models.conflict);
+  const config = createAgentConfig('conflict', repoDir, runId, dbPath, model);
 
   const prompt = CONFLICT_PROMPT.replace(
     '{{conflictFiles}}',
@@ -44,6 +48,7 @@ export async function resolveConflict(
         cwd: repoDir,
         allowedTools: config.allowedTools,
         maxTurns: config.maxTurns,
+        model: config.model,
       },
     })) {
       if (message.type === 'assistant' && message.message?.content) {

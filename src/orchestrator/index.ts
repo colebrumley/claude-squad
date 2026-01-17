@@ -341,6 +341,7 @@ export async function runOrchestrator(
           state.stateDir,
           state.runId,
           state.stateDir,
+          state.effort,
           callbacks.onOutput,
           callbacks.tracer
         );
