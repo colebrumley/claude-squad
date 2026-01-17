@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { getNextParallelGroup, canStartGroup } from './build.js';
-import type { Task, TaskGraph } from '../../types/index.js';
+import { getNextParallelGroup, canStartGroup, buildPromptWithFeedback } from './build.js';
+import type { Task, TaskGraph, ReviewIssue } from '../../types/index.js';
 
 describe('Build Phase', () => {
   const tasks: Task[] = [
@@ -40,5 +40,61 @@ describe('Build Phase', () => {
     assert.strictEqual(canStartGroup(['t1', 't2'], [], tasks), true);
     assert.strictEqual(canStartGroup(['t3'], [], tasks), false);
     assert.strictEqual(canStartGroup(['t3'], ['t1', 't2'], tasks), true);
+  });
+
+  test('buildPromptWithFeedback includes review issues for task', () => {
+    const task: Task = {
+      id: 't1',
+      title: 'Task 1',
+      description: 'Do something',
+      status: 'pending',
+      dependencies: [],
+      estimatedIterations: 5,
+      assignedLoopId: null,
+    };
+
+    const issues: ReviewIssue[] = [
+      {
+        taskId: 't1',
+        file: 'src/index.ts',
+        line: 42,
+        type: 'over-engineering',
+        description: 'Unnecessary wrapper',
+        suggestion: 'Inline the code',
+      },
+      {
+        taskId: 't2', // Different task
+        file: 'src/other.ts',
+        line: 10,
+        type: 'missing-error-handling',
+        description: 'Unhandled error',
+        suggestion: 'Add try-catch',
+      },
+    ];
+
+    const prompt = buildPromptWithFeedback(task, issues, 1, 10);
+
+    assert.ok(prompt.includes('Previous Review Feedback'), 'Should include feedback header');
+    assert.ok(prompt.includes('src/index.ts:42'), 'Should include file and line');
+    assert.ok(prompt.includes('Unnecessary wrapper'), 'Should include description');
+    assert.ok(prompt.includes('Inline the code'), 'Should include suggestion');
+    assert.ok(!prompt.includes('src/other.ts'), 'Should not include other task issues');
+  });
+
+  test('buildPromptWithFeedback works without issues', () => {
+    const task: Task = {
+      id: 't1',
+      title: 'Task 1',
+      description: 'Do something',
+      status: 'pending',
+      dependencies: [],
+      estimatedIterations: 5,
+      assignedLoopId: null,
+    };
+
+    const prompt = buildPromptWithFeedback(task, [], 1, 10);
+
+    assert.ok(!prompt.includes('Previous Review Feedback'), 'Should not include feedback header');
+    assert.ok(prompt.includes('Task 1'), 'Should include task title');
   });
 });

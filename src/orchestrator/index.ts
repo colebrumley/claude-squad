@@ -115,12 +115,15 @@ export async function runOrchestrator(
           timestamp: new Date().toISOString(),
           summary: result.passed
             ? 'Review passed'
-            : `Review failed: ${result.issues.join(', ')}`,
+            : `Review failed: ${result.issues.map(i => i.description).join(', ')}`,
         });
 
         state.pendingReview = false;
 
         if (result.passed) {
+          // Clear any previous review issues on success
+          state.context.reviewIssues = [];
+
           // Determine next phase based on what we reviewed
           switch (state.reviewType) {
             case 'enumerate':
@@ -140,7 +143,8 @@ export async function runOrchestrator(
           }
         } else {
           state.phase = 'revise';
-          state.context.errors.push(...result.issues);
+          // Store structured issues for feedback injection in build retry
+          state.context.reviewIssues = result.issues;
         }
         state.reviewType = null;
         break;

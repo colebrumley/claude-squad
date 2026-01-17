@@ -1,11 +1,44 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { OrchestratorState, Task, TaskGraph, LoopState } from '../../types/index.js';
+import type { OrchestratorState, Task, TaskGraph, LoopState, ReviewIssue } from '../../types/index.js';
 import { createAgentConfig } from '../../agents/spawn.js';
 import { BUILD_PROMPT } from '../../agents/prompts.js';
 import { LoopManager } from '../../loops/manager.js';
 import { detectStuck, updateStuckIndicators } from '../../loops/stuck-detection.js';
 import { getEffortConfig } from '../../config/effort.js';
 import { resolveConflict } from './conflict.js';
+
+export function buildPromptWithFeedback(
+  task: Task,
+  reviewIssues: ReviewIssue[],
+  iteration: number,
+  maxIterations: number
+): string {
+  let prompt = '';
+
+  // Filter issues for this task
+  const relevantIssues = reviewIssues.filter(i => i.taskId === task.id);
+
+  if (relevantIssues.length > 0) {
+    prompt += `## Previous Review Feedback\n`;
+    prompt += `Your last implementation had these issues. Fix them:\n\n`;
+    for (const issue of relevantIssues) {
+      const location = issue.line ? `${issue.file}:${issue.line}` : issue.file;
+      prompt += `- **${location}** (${issue.type}): ${issue.description}\n`;
+      prompt += `  Fix: ${issue.suggestion}\n\n`;
+    }
+  }
+
+  prompt += `${BUILD_PROMPT}
+
+## Current Task:
+ID: ${task.id}
+Title: ${task.title}
+Description: ${task.description}
+
+## Iteration: ${iteration}/${maxIterations}`;
+
+  return prompt;
+}
 
 export function getNextParallelGroup(
   graph: TaskGraph,
@@ -79,14 +112,12 @@ export async function executeBuildIteration(
   // Execute one iteration for each active loop
   const loopPromises = loopManager.getActiveLoops().map(async (loop) => {
     const task = state.tasks.find(t => t.id === loop.taskIds[0])!;
-    const prompt = `${BUILD_PROMPT}
-
-## Current Task:
-ID: ${task.id}
-Title: ${task.title}
-Description: ${task.description}
-
-## Iteration: ${loop.iteration + 1}/${loop.maxIterations}`;
+    const prompt = buildPromptWithFeedback(
+      task,
+      state.context.reviewIssues ?? [],
+      loop.iteration + 1,
+      loop.maxIterations
+    );
 
     let output = '';
     let hasError = false;
