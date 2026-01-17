@@ -2,7 +2,8 @@
 import { resolve } from 'node:path';
 import { access } from 'node:fs/promises';
 import { createCLI } from './cli.js';
-import { loadState, saveState, initializeState } from './state/index.js';
+import { loadState, initializeState } from './state/index.js';
+import { runOrchestrator, getExitCode } from './orchestrator/index.js';
 
 async function main() {
   const program = createCLI();
@@ -44,10 +45,33 @@ async function main() {
     return;
   }
 
-  // TODO: Execute phase
-  console.log('Phase execution not yet implemented');
+  if (state.phase === 'complete') {
+    console.log('Run already complete!');
+    process.exit(0);
+  }
 
-  await saveState(state);
+  // Run one phase
+  state = await runOrchestrator(state, {
+    onPhaseStart: (phase) => console.log(`Starting phase: ${phase}`),
+    onPhaseComplete: (phase, success) =>
+      console.log(`Phase ${phase} ${success ? 'completed' : 'failed'}`),
+    onOutput: (text) => process.stdout.write(text),
+    onLoopOutput: (loopId, text) =>
+      console.log(`[${loopId.slice(0, 8)}] ${text}`),
+  });
+
+  const exitCode = getExitCode(state);
+
+  if (state.phase === 'complete') {
+    console.log('\n✓ All tasks completed successfully!');
+  } else if (exitCode === 2) {
+    console.log('\n⚠ Loop stuck - needs intervention');
+  } else {
+    console.log(`\nPhase complete. Next: ${state.phase}`);
+    console.log('Run again to continue (or use outer Ralph loop)');
+  }
+
+  process.exit(exitCode);
 }
 
 main().catch((err) => {
