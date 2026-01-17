@@ -57,6 +57,7 @@ export function initializeState(options: InitStateOptions): OrchestratorState {
       discoveries: [],
       errors: [],
       decisions: [],
+      reviewIssues: [],
     },
     costs: {
       totalCostUsd: 0,

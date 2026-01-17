@@ -5,6 +5,17 @@ export type EffortLevel = 'low' | 'medium' | 'high' | 'max';
 export type Phase = 'enumerate' | 'plan' | 'build' | 'review' | 'revise' | 'conflict' | 'complete';
 export type ReviewType = 'enumerate' | 'plan' | 'build' | null;
 
+export type ReviewIssueType = 'over-engineering' | 'missing-error-handling' | 'pattern-violation' | 'dead-code';
+
+export interface ReviewIssue {
+  taskId: string;
+  file: string;
+  line?: number;
+  type: ReviewIssueType;
+  description: string;
+  suggestion: string;
+}
+
 export interface PhaseResult {
   phase: Phase;
   success: boolean;
@@ -16,6 +27,7 @@ export interface OrchestratorContext {
   discoveries: string[];
   errors: string[];
   decisions: string[];
+  reviewIssues: ReviewIssue[];
 }
 
 export interface CostTracking {
