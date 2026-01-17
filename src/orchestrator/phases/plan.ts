@@ -1,9 +1,10 @@
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { PLAN_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
 import { getDatabase } from '../../db/index.js';
 import type { DebugTracer } from '../../debug/index.js';
+import { MCP_SERVER_PATH } from '../../paths.js';
 import type { OrchestratorState, Task, TaskGraph } from '../../types/index.js';
 
 /**
@@ -49,6 +50,11 @@ ${tasksJson}`;
   let costUsd = 0;
   const startTime = Date.now();
 
+  const writer = tracer?.startAgentCall({
+    phase: 'plan',
+    prompt,
+  });
+
   for await (const message of query({
     prompt,
     options: {
@@ -58,7 +64,7 @@ ${tasksJson}`;
       mcpServers: {
         'sq-db': {
           command: 'node',
-          args: [resolve(cwd, 'node_modules/.bin/sq-mcp'), state.runId, dbPath],
+          args: [MCP_SERVER_PATH, state.runId, dbPath],
         },
       },
     },
@@ -67,6 +73,7 @@ ${tasksJson}`;
       for (const block of message.message.content) {
         if ('text' in block) {
           fullOutput += block.text;
+          writer?.appendOutput(block.text);
           onOutput?.(block.text);
         }
       }
@@ -77,14 +84,7 @@ ${tasksJson}`;
   }
 
   const durationMs = Date.now() - startTime;
-
-  await tracer?.logAgentCall({
-    phase: 'plan',
-    prompt,
-    response: fullOutput,
-    costUsd,
-    durationMs,
-  });
+  await writer?.complete(costUsd, durationMs);
 
   // Plan groups are now in the database via MCP add_plan_group calls
   const parallelGroups = loadPlanGroupsFromDB(state.runId);

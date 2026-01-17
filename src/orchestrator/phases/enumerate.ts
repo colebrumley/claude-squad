@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { ENUMERATE_PROMPT } from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
 import { getDatabase } from '../../db/index.js';
 import type { DebugTracer } from '../../debug/index.js';
+import { MCP_SERVER_PATH } from '../../paths.js';
 import type { OrchestratorState, Task } from '../../types/index.js';
 
 // Task granularity bounds (Risk #5 mitigation)
@@ -99,6 +100,11 @@ ${specContent}`;
   let costUsd = 0;
   const startTime = Date.now();
 
+  const writer = tracer?.startAgentCall({
+    phase: 'enumerate',
+    prompt,
+  });
+
   for await (const message of query({
     prompt,
     options: {
@@ -108,7 +114,7 @@ ${specContent}`;
       mcpServers: {
         'sq-db': {
           command: 'node',
-          args: [resolve(cwd, 'node_modules/.bin/sq-mcp'), state.runId, dbPath],
+          args: [MCP_SERVER_PATH, state.runId, dbPath],
         },
       },
     },
@@ -117,6 +123,7 @@ ${specContent}`;
       for (const block of message.message.content) {
         if ('text' in block) {
           fullOutput += block.text;
+          writer?.appendOutput(block.text);
           onOutput?.(block.text);
         }
       }
@@ -127,14 +134,7 @@ ${specContent}`;
   }
 
   const durationMs = Date.now() - startTime;
-
-  await tracer?.logAgentCall({
-    phase: 'enumerate',
-    prompt,
-    response: fullOutput,
-    costUsd,
-    durationMs,
-  });
+  await writer?.complete(costUsd, durationMs);
 
   // Tasks are now in the database via MCP write_task calls
   const tasks = loadTasksFromDB(state.runId);

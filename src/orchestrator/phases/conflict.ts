@@ -32,6 +32,11 @@ export async function resolveConflict(
   let costUsd = 0;
   const startTime = Date.now();
 
+  const writer = tracer?.startAgentCall({
+    phase: 'conflict',
+    prompt,
+  });
+
   try {
     for await (const message of query({
       prompt,
@@ -45,6 +50,7 @@ export async function resolveConflict(
         for (const block of message.message.content) {
           if ('text' in block) {
             output += block.text;
+            writer?.appendOutput(block.text);
             onOutput?.(block.text);
           }
         }
@@ -55,14 +61,7 @@ export async function resolveConflict(
     }
 
     const durationMs = Date.now() - startTime;
-
-    await tracer?.logAgentCall({
-      phase: 'conflict',
-      prompt,
-      response: output,
-      costUsd,
-      durationMs,
-    });
+    await writer?.complete(costUsd, durationMs);
 
     if (output.includes('CONFLICT_RESOLVED')) {
       return { resolved: true, costUsd };

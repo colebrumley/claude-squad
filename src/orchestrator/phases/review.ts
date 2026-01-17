@@ -1,9 +1,10 @@
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createAgentConfig } from '../../agents/spawn.js';
 import type { EffortConfig } from '../../config/effort.js';
 import { getDatabase } from '../../db/index.js';
 import type { DebugTracer } from '../../debug/index.js';
+import { MCP_SERVER_PATH } from '../../paths.js';
 import type {
   OrchestratorState,
   ReviewIssue,
@@ -194,6 +195,11 @@ File: ${state.specPath}`;
   let costUsd = 0;
   const startTime = Date.now();
 
+  const writer = tracer?.startAgentCall({
+    phase: 'review',
+    prompt,
+  });
+
   for await (const message of query({
     prompt,
     options: {
@@ -203,7 +209,7 @@ File: ${state.specPath}`;
       mcpServers: {
         'sq-db': {
           command: 'node',
-          args: [resolve(cwd, 'node_modules/.bin/sq-mcp'), state.runId, dbPath],
+          args: [MCP_SERVER_PATH, state.runId, dbPath],
         },
       },
     },
@@ -212,6 +218,7 @@ File: ${state.specPath}`;
       for (const block of message.message.content) {
         if ('text' in block) {
           fullOutput += block.text;
+          writer?.appendOutput(block.text);
           onOutput?.(block.text);
         }
       }
@@ -222,14 +229,7 @@ File: ${state.specPath}`;
   }
 
   const durationMs = Date.now() - startTime;
-
-  await tracer?.logAgentCall({
-    phase: 'review',
-    prompt,
-    response: fullOutput,
-    costUsd,
-    durationMs,
-  });
+  await writer?.complete(costUsd, durationMs);
 
   // Review result is now in the database via MCP set_review_result call
   const { passed, issues } = loadReviewResultFromDB(state.runId);

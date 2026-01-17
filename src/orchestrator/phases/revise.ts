@@ -102,6 +102,11 @@ export async function executeRevise(
 
   const cwd = process.cwd();
 
+  const writer = tracer?.startAgentCall({
+    phase: 'revise',
+    prompt,
+  });
+
   try {
     for await (const message of query({
       prompt,
@@ -115,6 +120,7 @@ export async function executeRevise(
         for (const block of message.message.content) {
           if ('text' in block) {
             fullOutput += block.text;
+            writer?.appendOutput(block.text);
             onOutput?.(block.text);
           }
         }
@@ -125,14 +131,7 @@ export async function executeRevise(
     }
 
     const durationMs = Date.now() - startTime;
-
-    await tracer?.logAgentCall({
-      phase: 'revise',
-      prompt,
-      response: fullOutput,
-      costUsd,
-      durationMs,
-    });
+    await writer?.complete(costUsd, durationMs);
 
     // Check for completion signal
     if (!fullOutput.includes('REVISE_COMPLETE')) {
