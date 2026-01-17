@@ -10,6 +10,7 @@ export interface CLIOptions {
   resume: boolean;
   reset: boolean;
   dryRun: boolean;
+  tui: boolean;
 }
 
 export function parseArgs(args: string[]): CLIOptions {
@@ -25,7 +26,8 @@ export function parseArgs(args: string[]): CLIOptions {
     .option('--state-dir <path>', 'State directory', '.c2')
     .option('--resume', 'Resume existing run', false)
     .option('--reset', 'Discard state and start fresh', false)
-    .option('--dry-run', 'Show what would happen', false);
+    .option('--dry-run', 'Show what would happen', false)
+    .option('--tui', 'Run with TUI interface', false);
 
   program.parse(['node', 'c2', ...args]);
   const opts = program.opts();
@@ -39,6 +41,7 @@ export function parseArgs(args: string[]): CLIOptions {
     resume: opts.resume,
     reset: opts.reset,
     dryRun: opts.dryRun,
+    tui: opts.tui,
   };
 }
 
@@ -55,7 +58,8 @@ export function createCLI(): Command {
     .option('--state-dir <path>', 'State directory', '.c2')
     .option('--resume', 'Resume existing run', false)
     .option('--reset', 'Discard state and start fresh', false)
-    .option('--dry-run', 'Show what would happen', false);
+    .option('--dry-run', 'Show what would happen', false)
+    .option('--tui', 'Run with TUI interface', false);
 
   return program;
 }

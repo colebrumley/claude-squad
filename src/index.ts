@@ -50,6 +50,16 @@ async function main() {
     process.exit(0);
   }
 
+  // TUI mode
+  if (opts.tui) {
+    const { render } = await import('ink');
+    const { App } = await import('./tui/App.js');
+    const React = await import('react');
+
+    render(React.createElement(App, { initialState: state }));
+    return; // TUI handles everything
+  }
+
   // Run one phase
   state = await runOrchestrator(state, {
     onPhaseStart: (phase) => console.log(`Starting phase: ${phase}`),
