@@ -64,4 +64,8 @@ export interface OrchestratorState {
   maxLoops: number;
   maxIterations: number;
   stateDir: string;
+
+  // Git worktree isolation
+  baseBranch: string | null; // null if not a git repo
+  useWorktrees: boolean;
 }

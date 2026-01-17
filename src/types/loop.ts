@@ -15,4 +15,5 @@ export interface LoopState {
   status: 'pending' | 'running' | 'stuck' | 'completed' | 'failed';
   stuckIndicators: StuckIndicators;
   output: string[]; // Recent output lines for TUI
+  worktreePath: string | null; // Path to git worktree (null if not using worktrees)
 }

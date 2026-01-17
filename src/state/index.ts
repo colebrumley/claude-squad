@@ -1,11 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 import type { EffortLevel, OrchestratorState } from '../types/index.js';
-import { OrchestratorStateSchema } from './schema.js';
 import { getEffortConfig } from '../config/effort.js';
-
-const STATE_FILE = 'state.json';
 
 export interface InitStateOptions {
   specPath: string;
@@ -13,10 +9,36 @@ export interface InitStateOptions {
   stateDir: string;
   maxLoops: number;
   maxIterations: number;
+  useWorktrees?: boolean;
+}
+
+function getBaseBranch(): string | null {
+  try {
+    return execSync('git rev-parse --abbrev-ref HEAD', { stdio: 'pipe' })
+      .toString()
+      .trim();
+  } catch {
+    return null; // Not a git repo
+  }
+}
+
+function isGitClean(): boolean {
+  try {
+    execSync('git diff --quiet && git diff --cached --quiet', { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function initializeState(options: InitStateOptions): OrchestratorState {
   const effortConfig = getEffortConfig(options.effort);
+  const baseBranch = getBaseBranch();
+  const useWorktrees = options.useWorktrees !== false && baseBranch !== null;
+
+  if (useWorktrees && !isGitClean()) {
+    throw new Error('Cannot run c2 with uncommitted changes - commit or stash first');
+  }
 
   return {
     runId: randomUUID(),
@@ -52,24 +74,9 @@ export function initializeState(options: InitStateOptions): OrchestratorState {
     maxLoops: options.maxLoops,
     maxIterations: options.maxIterations,
     stateDir: options.stateDir,
+    baseBranch,
+    useWorktrees,
   };
-}
-
-export async function saveState(state: OrchestratorState): Promise<void> {
-  await mkdir(state.stateDir, { recursive: true });
-  const filePath = join(state.stateDir, STATE_FILE);
-  await writeFile(filePath, JSON.stringify(state, null, 2));
-}
-
-export async function loadState(stateDir: string): Promise<OrchestratorState | null> {
-  const filePath = join(stateDir, STATE_FILE);
-  try {
-    const content = await readFile(filePath, 'utf-8');
-    const parsed = JSON.parse(content);
-    return OrchestratorStateSchema.parse(parsed);
-  } catch {
-    return null;
-  }
 }
 
 export { OrchestratorStateSchema } from './schema.js';

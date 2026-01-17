@@ -11,7 +11,9 @@ CREATE TABLE IF NOT EXISTS runs (
   max_iterations INTEGER NOT NULL DEFAULT 20,
   total_cost_usd REAL NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  base_branch TEXT,
+  use_worktrees INTEGER NOT NULL DEFAULT 1
 );
 
 -- Tasks table: enumerated tasks for a run
@@ -51,6 +53,7 @@ CREATE TABLE IF NOT EXISTS loops (
   last_error TEXT,
   last_file_change_iteration INTEGER NOT NULL DEFAULT 0,
   cost_usd REAL NOT NULL DEFAULT 0,
+  worktree_path TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
