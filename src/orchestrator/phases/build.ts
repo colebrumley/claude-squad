@@ -174,6 +174,14 @@ export async function executeBuildIteration(
     let costUsd = 0;
     const startTime = Date.now();
 
+    // Start streaming writer
+    const writer = tracer?.startAgentCall({
+      phase: 'build',
+      loopId: loop.loopId,
+      iteration: loop.iteration + 1,
+      prompt,
+    });
+
     try {
       for await (const message of query({
         prompt,
@@ -187,6 +195,7 @@ export async function executeBuildIteration(
           for (const block of message.message.content) {
             if ('text' in block) {
               output += block.text;
+              writer?.appendOutput(block.text);
               onLoopOutput?.(loop.loopId, block.text);
               loopManager.appendOutput(loop.loopId, block.text);
             }
@@ -198,15 +207,7 @@ export async function executeBuildIteration(
       }
 
       const durationMs = Date.now() - startTime;
-      await tracer?.logAgentCall({
-        phase: 'build',
-        loopId: loop.loopId,
-        iteration: loop.iteration + 1,
-        prompt,
-        response: output,
-        costUsd,
-        durationMs,
-      });
+      await writer?.complete(costUsd, durationMs);
 
       // Check for completion signal
       if (output.includes('TASK_COMPLETE')) {

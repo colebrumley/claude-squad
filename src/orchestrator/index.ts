@@ -139,7 +139,8 @@ export async function runOrchestrator(
             maxIterations: state.maxIterations,
             reviewInterval: effortConfig.reviewInterval,
           },
-          worktreeManager
+          worktreeManager,
+          callbacks.tracer
         );
 
         // Restore active loops from state
