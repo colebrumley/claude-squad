@@ -157,4 +157,4 @@ The orchestrator is stateless per invocation - it loads state, executes one phas
 
 ## License
 
-ISC
+MIT
