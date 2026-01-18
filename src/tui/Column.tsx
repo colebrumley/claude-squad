@@ -1,4 +1,4 @@
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import { useEffect, useState } from 'react';
 import type { LoopState } from '../types/index.js';
 
@@ -6,6 +6,7 @@ interface ColumnProps {
   loop: LoopState;
   taskTitle: string;
   isFocused?: boolean;
+  totalColumns: number;
 }
 
 function formatIdleTime(lastActivityAt: number, now: number): { text: string; color: string } {
@@ -38,14 +39,27 @@ function getStatusIndicator(status: LoopState['status']): { symbol: string; colo
   }
 }
 
-export function Column({ loop, taskTitle, isFocused = false }: ColumnProps) {
+export function Column({ loop, taskTitle, isFocused = false, totalColumns }: ColumnProps) {
+  const { stdout } = useStdout();
+  const terminalWidth = stdout?.columns || 120;
+
   const status = getStatusIndicator(loop.status);
   // Show more output when focused
   const outputLineCount = isFocused ? 20 : 10;
   const recentOutput = loop.output.slice(-outputLineCount);
-  // Longer text limits when focused
-  const titleLimit = isFocused ? 50 : 20;
-  const outputLimit = isFocused ? 80 : 30;
+
+  // Calculate column width based on total columns
+  // Single column: full width; when focused, take more space
+  const baseWidthPercent = Math.floor(100 / totalColumns);
+  const columnWidth = totalColumns === 1 ? '100%' : isFocused ? '50%' : `${baseWidthPercent}%`;
+
+  // Calculate actual column width in characters (accounting for box borders: 2 chars per column)
+  const columnChars = Math.floor(terminalWidth / totalColumns) - 4;
+  const dividerWidth = Math.max(20, columnChars - 2);
+
+  // Text limits based on actual column width
+  const titleLimit = Math.max(20, columnChars - 10);
+  const outputLimit = Math.max(30, columnChars - 2);
 
   // Track current time for idle display (only update for running loops)
   const [now, setNow] = useState(Date.now());
@@ -63,8 +77,9 @@ export function Column({ loop, taskTitle, isFocused = false }: ColumnProps) {
       flexDirection="column"
       borderStyle={isFocused ? 'double' : 'single'}
       borderColor={isFocused ? 'cyan' : undefined}
-      width={isFocused ? '50%' : '33%'}
-      minHeight={isFocused ? 25 : 15}
+      width={columnWidth}
+      height="100%"
+      overflow="hidden"
     >
       {/* Header */}
       <Box paddingX={1}>
@@ -108,16 +123,24 @@ export function Column({ loop, taskTitle, isFocused = false }: ColumnProps) {
 
       {/* Divider */}
       <Box paddingX={1}>
-        <Text dimColor>{'─'.repeat(isFocused ? 48 : 28)}</Text>
+        <Text dimColor>{'─'.repeat(dividerWidth)}</Text>
       </Box>
 
       {/* Output */}
       <Box flexDirection="column" paddingX={1} flexGrow={1}>
-        {recentOutput.map((line, i) => (
-          <Text key={i} wrap="truncate">
-            {line.slice(0, outputLimit)}
-          </Text>
-        ))}
+        {recentOutput.map((line, i) => {
+          const isThinking = line.startsWith('[thinking]');
+          return (
+            <Text
+              key={i}
+              color={isThinking ? 'magenta' : undefined}
+              dimColor={isThinking}
+              wrap="truncate"
+            >
+              {line.slice(0, outputLimit)}
+            </Text>
+          );
+        })}
       </Box>
     </Box>
   );

@@ -100,11 +100,20 @@ export function StatusArea({
       {/* Show last few lines of output */}
       {output.length > 0 && (
         <Box flexDirection="column" marginTop={1}>
-          {output.slice(-5).map((line, i) => (
-            <Text key={i} dimColor wrap="truncate">
-              {line.length > 120 ? `${line.slice(0, 117)}...` : line}
-            </Text>
-          ))}
+          {output.slice(-5).map((line, i) => {
+            const isThinking = line.startsWith('[thinking]');
+            const displayLine = line.length > 120 ? `${line.slice(0, 117)}...` : line;
+            return (
+              <Text
+                key={i}
+                color={isThinking ? 'magenta' : undefined}
+                dimColor={!isThinking}
+                wrap="truncate"
+              >
+                {displayLine}
+              </Text>
+            );
+          })}
         </Box>
       )}
     </Box>

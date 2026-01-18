@@ -348,6 +348,28 @@ set_review_result({
 
 Issue types: over-engineering, missing-error-handling, pattern-violation, dead-code, spec-intent-mismatch`;
 
+  const verificationRequirement = `
+## The Iron Law: Evidence Before Claims
+
+**NO REVIEW CLAIMS WITHOUT VERIFICATION EVIDENCE**
+
+Before calling set_review_result, you MUST:
+1. Actually RUN the test suite and show output
+2. Actually READ the implementation files
+3. Show evidence before making any claim
+
+| Claim | Requires | NOT Sufficient |
+|-------|----------|----------------|
+| "Tests pass" | Test command output: 0 failures | "Should pass", previous run, assumption |
+| "Code correct" | Read actual file contents | Task description, memory |
+| "Spec satisfied" | Line-by-line requirement check | "Looks complete" |
+| "No issues" | Explicit verification of each area | Absence of obvious problems |
+
+**Red Flags - You're Rationalizing If You Think:**
+- "I'm confident the tests pass" → RUN THEM
+- "The code looks fine" → READ IT
+- "This should work" → VERIFY IT`;
+
   const qualityChecks = `
 **Check for these quality issues:**
 - Unnecessary abstractions: classes/functions used only once, premature generalization
@@ -363,10 +385,11 @@ For each issue, specify the file, line number, what's wrong, and how to fix it.`
 
 You are in the **REVIEW** phase. Evaluate the work done so far.
 ${intentAnalysis}
+${verificationRequirement}
 ${mcpInstructions}
 
 Perform a basic review:
-- Do tests pass?
+- Do tests pass? (RUN them, show output)
 - Are there obvious bugs?
 
 When done, output: REVIEW_COMPLETE`;
@@ -376,12 +399,13 @@ When done, output: REVIEW_COMPLETE`;
 
 You are in the **REVIEW** phase. Evaluate the work done so far.
 ${intentAnalysis}
+${verificationRequirement}
 ${mcpInstructions}
 ${qualityChecks}
 
 Perform a standard review:
-- Do tests pass?
-- Does the code match the spec?
+- Do tests pass? (RUN them, show output)
+- Does the code match the spec? (READ files, check each requirement)
 - Are there bugs or edge cases?
 
 When done, output: REVIEW_COMPLETE`;
@@ -391,12 +415,13 @@ When done, output: REVIEW_COMPLETE`;
 
 You are in the **REVIEW** phase. Evaluate the work done so far.
 ${intentAnalysis}
+${verificationRequirement}
 ${mcpInstructions}
 ${qualityChecks}
 
 Perform a comprehensive review:
-- Do tests pass?
-- Does implementation match spec?
+- Do tests pass? (RUN them, show output)
+- Does implementation match spec? (READ files, verify each requirement)
 - Are edge cases handled?
 - Is error handling adequate?
 - Is the approach optimal?
@@ -408,12 +433,13 @@ When done, output: REVIEW_COMPLETE`;
 
 You are in the **REVIEW** phase. Evaluate the work done so far.
 ${intentAnalysis}
+${verificationRequirement}
 ${mcpInstructions}
 ${qualityChecks}
 
 Perform an exhaustive review:
-- Do all tests pass?
-- Full spec compliance check
+- Do all tests pass? (RUN full suite, show output)
+- Full spec compliance check (READ each file, verify each requirement)
 - Security analysis
 - Performance analysis
 - Edge case coverage
@@ -483,6 +509,7 @@ File: ${state.specPath}`;
       allowedTools: config.allowedTools,
       maxTurns: config.maxTurns,
       model: config.model,
+      includePartialMessages: true,
       mcpServers: {
         'sq-db': {
           command: 'node',
@@ -491,12 +518,45 @@ File: ${state.specPath}`;
       },
     },
   })) {
+    // Handle streaming events for real-time thinking output
+    if (message.type === 'stream_event') {
+      const event = message.event as any;
+      // Handle thinking delta events
+      if (event.type === 'content_block_delta' && event.delta?.type === 'thinking_delta') {
+        const thinkingText = event.delta.thinking || '';
+        if (thinkingText) {
+          writer?.appendOutput(thinkingText);
+          onOutput?.(`[thinking] ${thinkingText}`);
+        }
+      }
+      // Handle text delta events
+      if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+        const textDelta = event.delta.text || '';
+        if (textDelta) {
+          fullOutput += textDelta;
+          writer?.appendOutput(textDelta);
+          onOutput?.(textDelta);
+        }
+      }
+    }
     if (message.type === 'assistant' && message.message?.content) {
       for (const block of message.message.content) {
-        if ('text' in block) {
+        // Only handle text blocks that weren't already streamed
+        if ('text' in block && !fullOutput.includes(block.text)) {
           fullOutput += block.text;
           writer?.appendOutput(block.text);
           onOutput?.(block.text);
+        }
+        // Capture thinking blocks to show activity during extended thinking
+        if (
+          'type' in block &&
+          block.type === 'thinking' &&
+          'thinking' in block &&
+          typeof block.thinking === 'string'
+        ) {
+          const thinkingText = `[thinking] ${block.thinking}\n`;
+          writer?.appendOutput(thinkingText);
+          onOutput?.(thinkingText);
         }
       }
     }

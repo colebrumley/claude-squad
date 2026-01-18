@@ -6,7 +6,13 @@ import { Command } from 'commander';
 
 function getGitCommitHash(): string {
   try {
-    return execSync('git rev-parse --short HEAD', { stdio: 'pipe', encoding: 'utf-8' }).trim();
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const repoRoot = join(__dirname, '..');
+    return execSync('git rev-parse --short HEAD', {
+      stdio: 'pipe',
+      encoding: 'utf-8',
+      cwd: repoRoot,
+    }).trim();
   } catch {
     return 'unknown';
   }

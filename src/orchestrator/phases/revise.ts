@@ -118,14 +118,48 @@ export async function executeRevise(
         allowedTools: config.allowedTools,
         maxTurns: config.maxTurns,
         model: config.model,
+        includePartialMessages: true,
       },
     })) {
+      // Handle streaming events for real-time thinking output
+      if (message.type === 'stream_event') {
+        const event = message.event as any;
+        // Handle thinking delta events
+        if (event.type === 'content_block_delta' && event.delta?.type === 'thinking_delta') {
+          const thinkingText = event.delta.thinking || '';
+          if (thinkingText) {
+            writer?.appendOutput(thinkingText);
+            onOutput?.(`[thinking] ${thinkingText}`);
+          }
+        }
+        // Handle text delta events
+        if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+          const textDelta = event.delta.text || '';
+          if (textDelta) {
+            fullOutput += textDelta;
+            writer?.appendOutput(textDelta);
+            onOutput?.(textDelta);
+          }
+        }
+      }
       if (message.type === 'assistant' && message.message?.content) {
         for (const block of message.message.content) {
-          if ('text' in block) {
+          // Only handle text blocks that weren't already streamed
+          if ('text' in block && !fullOutput.includes(block.text)) {
             fullOutput += block.text;
             writer?.appendOutput(block.text);
             onOutput?.(block.text);
+          }
+          // Capture thinking blocks to show activity during extended thinking
+          if (
+            'type' in block &&
+            block.type === 'thinking' &&
+            'thinking' in block &&
+            typeof block.thinking === 'string'
+          ) {
+            const thinkingText = `[thinking] ${block.thinking}\n`;
+            writer?.appendOutput(thinkingText);
+            onOutput?.(thinkingText);
           }
         }
       }
