@@ -60,6 +60,9 @@ export function App({ initialState, tracer }: AppProps) {
   // UI state for focused column (null = no focus, 0-3 = focused column index)
   const [focusedLoopIndex, setFocusedLoopIndex] = useState<number | null>(null);
 
+  // UI state for task panel visibility
+  const [showTaskPanel, setShowTaskPanel] = useState(false);
+
   // Keep stateRef in sync for signal handler access
   useEffect(() => {
     stateRef.current = state;
@@ -137,6 +140,10 @@ export function App({ initialState, tracer }: AppProps) {
     if (input >= '1' && input <= '4') {
       const index = Number.parseInt(input, 10) - 1;
       setFocusedLoopIndex((prev) => (prev === index ? null : index));
+    }
+    // Toggle task panel
+    if (input === 't') {
+      setShowTaskPanel((prev) => !prev);
     }
   });
 
@@ -241,6 +248,7 @@ export function App({ initialState, tracer }: AppProps) {
       phaseOutput={phaseOutput}
       focusedLoopIndex={focusedLoopIndex}
       lastActivityTime={lastActivityTime}
+      showTaskPanel={showTaskPanel}
     />
   );
 }
