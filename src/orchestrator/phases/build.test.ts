@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import { describe, test } from 'node:test';
+import { BUILD_PROMPT } from '../../agents/prompts.js';
 import type { ReviewIssue, Task, TaskGraph } from '../../types/index.js';
 import { buildPromptWithFeedback, canStartGroup, getNextParallelGroup } from './build.js';
 
@@ -120,5 +121,63 @@ describe('Build Phase', () => {
 
     assert.ok(!prompt.includes('Previous Review Feedback'), 'Should not include feedback header');
     assert.ok(prompt.includes('Task 1'), 'Should include task title');
+  });
+
+  test('buildPromptWithFeedback starts with static BUILD_PROMPT for cache efficiency', () => {
+    const task: Task = {
+      id: 't1',
+      title: 'Task 1',
+      description: 'Do something',
+      status: 'pending',
+      dependencies: [],
+      estimatedIterations: 5,
+      assignedLoopId: null,
+    };
+
+    const prompt = buildPromptWithFeedback(task, [], 1, 10);
+
+    assert.ok(
+      prompt.startsWith(BUILD_PROMPT),
+      'Prompt must start with static BUILD_PROMPT for API-level prompt caching'
+    );
+  });
+
+  test('buildPromptWithFeedback puts review feedback after static content', () => {
+    const task: Task = {
+      id: 't1',
+      title: 'Task 1',
+      description: 'Do something',
+      status: 'pending',
+      dependencies: [],
+      estimatedIterations: 5,
+      assignedLoopId: null,
+    };
+
+    const issues: ReviewIssue[] = [
+      {
+        taskId: 't1',
+        file: 'src/index.ts',
+        line: 42,
+        type: 'over-engineering',
+        description: 'Unnecessary wrapper',
+        suggestion: 'Inline the code',
+      },
+    ];
+
+    const prompt = buildPromptWithFeedback(task, issues, 1, 10);
+
+    // Static content should come first
+    assert.ok(
+      prompt.startsWith(BUILD_PROMPT),
+      'Prompt must start with static BUILD_PROMPT even with review feedback'
+    );
+
+    // Review feedback should come after static content
+    const buildPromptEnd = prompt.indexOf(BUILD_PROMPT) + BUILD_PROMPT.length;
+    const feedbackIndex = prompt.indexOf('Previous Review Feedback');
+    assert.ok(
+      feedbackIndex > buildPromptEnd,
+      'Review feedback must come after static BUILD_PROMPT for cache efficiency'
+    );
   });
 });
