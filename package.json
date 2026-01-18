@@ -26,6 +26,7 @@
   "scripts": {
     "prepare": "sh scripts/setup-hooks.sh",
     "build": "tsc && cp src/db/schema.sql dist/db/",
+    "build:watch": "tsc --watch",
     "prepublishOnly": "npm run build",
     "dev": "tsx src/index.ts",
     "test": "tsx --test $(find src -name '*.test.ts')",

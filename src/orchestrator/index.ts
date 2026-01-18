@@ -3,7 +3,7 @@ import { getEffortConfig } from '../config/effort.js';
 import { checkRunCostLimit, formatCostExceededError } from '../costs/index.js';
 import type { DebugTracer, StateSnapshotEvent } from '../debug/index.js';
 import { LoopManager } from '../loops/manager.js';
-import type { CostTracking, OrchestratorState, Phase } from '../types/index.js';
+import type { CostTracking, LoopState, OrchestratorState, Phase } from '../types/index.js';
 import { WorktreeManager } from '../worktrees/manager.js';
 import { executeBuildIteration, getNextParallelGroup } from './phases/build.js';
 import { resolveConflict } from './phases/conflict.js';
@@ -52,6 +52,7 @@ export interface OrchestratorCallbacks {
   onPhaseStart?: (phase: Phase) => void;
   onPhaseComplete?: (phase: Phase, success: boolean) => void;
   onOutput?: (text: string) => void;
+  onLoopCreated?: (loop: LoopState) => void;
   onLoopOutput?: (loopId: string, text: string) => void;
   tracer?: DebugTracer;
 }
@@ -176,6 +177,7 @@ export async function runOrchestrator(
         const result = await executeBuildIteration(
           state,
           loopManager,
+          callbacks.onLoopCreated,
           callbacks.onLoopOutput,
           callbacks.tracer
         );

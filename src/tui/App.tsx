@@ -45,6 +45,9 @@ export function App({ initialState, tracer }: AppProps) {
   const [statusMessage, setStatusMessage] = useState(getPhaseStatusMessage(initialState.phase));
   const [phaseOutput, setPhaseOutput] = useState<string[]>([]);
 
+  // Activity tracking for "is it stuck?" indicator
+  const [lastActivityTime, setLastActivityTime] = useState<number>(Date.now());
+
   // UI state for focused column (null = no focus, 0-3 = focused column index)
   const [focusedLoopIndex, setFocusedLoopIndex] = useState<number | null>(null);
 
@@ -122,9 +125,21 @@ export function App({ initialState, tracer }: AppProps) {
       },
       onOutput: (text) => {
         // Stream phase output (enumerate, plan, review, etc.)
+        setLastActivityTime(Date.now());
         setPhaseOutput((prev) => [...prev.slice(-9), text]);
       },
+      onLoopCreated: (loop) => {
+        // Add new loop to state immediately so onLoopOutput can find it
+        setLoops((prev) => {
+          // Avoid duplicates in case loop was already restored
+          if (prev.some((l) => l.loopId === loop.loopId)) {
+            return prev;
+          }
+          return [...prev, loop];
+        });
+      },
       onLoopOutput: (loopId, text) => {
+        setLastActivityTime(Date.now());
         setLoops((prev) =>
           prev.map((l) =>
             l.loopId === loopId ? { ...l, output: [...l.output.slice(-99), text] } : l
@@ -162,6 +177,7 @@ export function App({ initialState, tracer }: AppProps) {
       statusMessage={statusMessage}
       phaseOutput={phaseOutput}
       focusedLoopIndex={focusedLoopIndex}
+      lastActivityTime={lastActivityTime}
     />
   );
 }

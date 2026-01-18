@@ -11,6 +11,7 @@ interface LayoutProps {
   statusMessage: string;
   phaseOutput: string[];
   focusedLoopIndex: number | null;
+  lastActivityTime: number;
 }
 
 export function Layout({
@@ -20,6 +21,7 @@ export function Layout({
   statusMessage,
   phaseOutput,
   focusedLoopIndex,
+  lastActivityTime,
 }: LayoutProps) {
   const activeLoops = loops.filter((l) => l.status === 'running' || l.status === 'pending');
   // Minimize status area during build phase when loops are active
@@ -27,7 +29,11 @@ export function Layout({
 
   return (
     <Box flexDirection="column">
-      <Header state={state} activeLoopCount={activeLoops.length} />
+      <Header
+        state={state}
+        activeLoopCount={activeLoops.length}
+        lastActivityTime={lastActivityTime}
+      />
       <StatusArea
         phase={state.phase}
         isLoading={isLoading}
