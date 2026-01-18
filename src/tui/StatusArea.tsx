@@ -8,6 +8,7 @@ interface StatusAreaProps {
   statusMessage: string;
   output: string[];
   minimized?: boolean;
+  terminalHeight?: number;
 }
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -52,7 +53,12 @@ export function StatusArea({
   statusMessage,
   output,
   minimized,
+  terminalHeight,
 }: StatusAreaProps) {
+  // Single-loop phases (enumerate, plan) expand to fill available space
+  const isSingleLoopPhase = phase === 'enumerate' || phase === 'plan';
+  // Calculate available lines: terminal height minus header (1), footer (3), status header (2), borders/padding (4)
+  const availableLines = isSingleLoopPhase && terminalHeight ? Math.max(5, terminalHeight - 10) : 5;
   // In minimized mode (during build), show just a compact status line
   if (minimized) {
     return (
@@ -97,10 +103,10 @@ export function StatusArea({
         )}
       </Box>
 
-      {/* Show last few lines of output */}
+      {/* Show output lines - expanded for single-loop phases */}
       {output.length > 0 && (
         <Box flexDirection="column" marginTop={1}>
-          {output.slice(-5).map((line, i) => {
+          {output.slice(-availableLines).map((line, i) => {
             const isThinking = line.startsWith('[thinking]');
             const displayLine = line.length > 120 ? `${line.slice(0, 117)}...` : line;
             return (

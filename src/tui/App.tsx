@@ -173,7 +173,8 @@ export function App({ initialState, tracer }: AppProps) {
           // Last element is either empty (if text ended with \n) or a partial line
           phaseLineBuffer.current = lines.pop() || '';
           if (lines.length > 0) {
-            setPhaseOutput((prev) => [...prev.slice(-(10 - lines.length)), ...lines]);
+            // Buffer up to 50 lines to support expanded display in single-loop phases
+            setPhaseOutput((prev) => [...prev.slice(-(50 - lines.length)), ...lines]);
           }
         },
         onLoopCreated: (loop) => {

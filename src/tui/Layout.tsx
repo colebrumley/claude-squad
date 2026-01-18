@@ -59,6 +59,7 @@ export function Layout({
         statusMessage={statusMessage}
         output={phaseOutput}
         minimized={minimizeStatus}
+        terminalHeight={terminalHeight}
       />
 
       {/* Loop columns and optional task panel */}
