@@ -255,15 +255,20 @@ export async function executeBuildIteration(
   // Execute one iteration for each active loop
   const loopPromises = loopManager.getActiveLoops().map(async (loop) => {
     const task = state.tasks.find((t) => t.id === loop.taskIds[0])!;
-    const prompt = buildPromptWithFeedback(
-      task,
-      state.context.reviewIssues ?? [],
-      loop.iteration + 1,
-      loop.maxIterations
-    );
 
     // Use worktree path if available, otherwise fall back to process.cwd()
     const loopCwd = loop.worktreePath || process.cwd();
+
+    // Read scratchpad from previous iteration
+    const scratchpad = readScratchpad(loopCwd, loop.loopId, state.stateDir);
+
+    const prompt = buildIterationPrompt(
+      task,
+      scratchpad,
+      loop.iteration + 1,
+      loop.maxIterations,
+      state.context.reviewIssues ?? []
+    );
     const model = getModelId(effortConfig.models.build);
     const config = createAgentConfig('build', loopCwd, state.runId, dbPath, model);
 
