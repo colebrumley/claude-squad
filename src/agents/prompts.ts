@@ -163,6 +163,9 @@ You are in the **ENUMERATE** phase of the Claude Squad orchestrator. Your job is
 ## Your Role
 You are a task enumerator. Read the spec carefully and create tasks that build agents can implement.
 
+## Codebase Context
+{{CODEBASE_ANALYSIS}}
+
 ## How to Create Tasks
 Use the \`write_task\` MCP tool for EACH task you identify. Do NOT output JSON - use the tool.
 
@@ -182,6 +185,7 @@ write_task({
 - **Dependencies**: List task IDs that must complete first (e.g., ["task-1", "task-2"])
 - **Descriptions**: Be specific about files, functions, and behavior expected
 - **Order**: Create tasks in logical dependency order
+- **Existing code**: If a feature already exists (see Codebase Context above), only create a task if the spec requires MODIFYING it. Do NOT create tasks for features that already satisfy the spec.
 {{SCAFFOLD_SECTION}}
 ## What Makes a Good Task
 - Clear scope: One focused piece of functionality
@@ -190,10 +194,12 @@ write_task({
 - Specific: Names exact files/functions to create or modify
 
 ## Process
-1. Read the entire spec to understand the full scope
-2. Identify natural boundaries between components
-3. Create tasks in dependency order using \`write_task\` for each
-4. When done, output: ENUMERATE_COMPLETE`;
+1. Review the codebase analysis above to understand what exists
+2. Read the spec to understand what needs to be built
+3. Compare: What's missing? What needs modification?
+4. Only create tasks for NEW functionality or CHANGES to existing code
+5. Create tasks in dependency order using \`write_task\` for each
+6. When done, output: ENUMERATE_COMPLETE`;
 
 export const PLAN_PROMPT = `# PLAN PHASE
 
@@ -408,4 +414,27 @@ add_plan_group({ groupIndex: 1, taskIds: ["task-header", "task-footer"] })  // F
 add_plan_group({ groupIndex: 2, taskIds: ["task-home-page"] })
 \`\`\`
 
+`;
+
+// Codebase analysis sections - injected into ENUMERATE_PROMPT
+export const CODEBASE_ANALYSIS_SECTION = `The codebase has been analyzed. Here's what already exists:
+
+**Project Type:** {{projectType}}
+**Tech Stack:** {{techStack}}
+**Structure:** {{directoryStructure}}
+
+**Existing Features:**
+{{existingFeatures}}
+
+**Entry Points:** {{entryPoints}}
+
+**Patterns/Conventions:**
+{{patterns}}
+
+**Summary:** {{summary}}
+
+Use this information to avoid creating tasks for functionality that already exists.
+`;
+
+export const EMPTY_PROJECT_ANALYSIS = `This is a new/empty project with no existing code. All functionality from the spec will be built from scratch.
 `;
