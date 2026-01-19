@@ -12,4 +12,32 @@ if (!runId) {
 }
 
 createDatabase(dbPath);
-startMCPServer(runId, dbPath).catch(console.error);
+
+startMCPServer(runId, dbPath)
+  .then((server) => {
+    // Register graceful shutdown handlers
+    const shutdown = async () => {
+      try {
+        await server.close();
+      } catch {
+        // Ignore close errors during shutdown
+      }
+      process.exit(0);
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+
+    // Handle unexpected errors after startup
+    server.onerror = (error) => {
+      console.error('MCP server error:', error.message);
+    };
+
+    server.onclose = () => {
+      process.exit(0);
+    };
+  })
+  .catch((error) => {
+    console.error('Failed to start MCP server:', error.message);
+    process.exit(1);
+  });

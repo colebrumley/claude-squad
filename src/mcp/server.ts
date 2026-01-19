@@ -615,4 +615,5 @@ export async function startMCPServer(runId: string, dbPath: string) {
   const server = createMCPServer(runId, dbPath);
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  return server;
 }
