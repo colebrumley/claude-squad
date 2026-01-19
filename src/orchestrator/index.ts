@@ -14,8 +14,14 @@ import { executeRevise } from './phases/revise.js';
 
 /**
  * Update cost tracking state with new costs from a phase or loop execution.
+ * Exported for testing.
  */
-function updateCosts(costs: CostTracking, phase: Phase, costUsd: number, loopId?: string): void {
+export function updateCosts(
+  costs: CostTracking,
+  phase: Phase,
+  costUsd: number,
+  loopId?: string
+): void {
   costs.totalCostUsd += costUsd;
   costs.phaseCosts[phase] = (costs.phaseCosts[phase] || 0) + costUsd;
   if (loopId) {
@@ -23,7 +29,11 @@ function updateCosts(costs: CostTracking, phase: Phase, costUsd: number, loopId?
   }
 }
 
-function buildStateSnapshot(state: OrchestratorState): StateSnapshotEvent['state'] {
+/**
+ * Build a state snapshot for debug tracing.
+ * Exported for testing.
+ */
+export function buildStateSnapshot(state: OrchestratorState): StateSnapshotEvent['state'] {
   return {
     phase: state.phase,
     tasks: {
