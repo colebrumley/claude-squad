@@ -11,10 +11,11 @@ export type ReviewIssueType =
   | 'missing-error-handling'
   | 'pattern-violation'
   | 'dead-code'
-  | 'spec-intent-mismatch';
+  | 'spec-intent-mismatch'
+  | 'architecture-concern';
 
 export interface ReviewIssue {
-  taskId: string;
+  taskId?: string; // Optional: cross-task issues (architecture, patterns) have no taskId
   file: string;
   line?: number;
   type: ReviewIssueType;

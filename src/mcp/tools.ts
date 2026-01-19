@@ -43,7 +43,10 @@ export const AddContextSchema = z.object({
 });
 
 export const ReviewIssueSchema = z.object({
-  taskId: z.string().describe('ID of the task with the issue'),
+  taskId: z
+    .string()
+    .optional()
+    .describe('ID of the task with the issue (omit for cross-task architecture concerns)'),
   file: z.string().describe('File path where the issue was found'),
   line: z.number().optional().describe('Line number of the issue'),
   type: z
@@ -53,6 +56,7 @@ export const ReviewIssueSchema = z.object({
       'pattern-violation',
       'dead-code',
       'spec-intent-mismatch',
+      'architecture-concern',
     ])
     .describe('Type of issue'),
   description: z.string().describe('Description of the issue'),
@@ -84,6 +88,7 @@ export const LoopReviewIssueSchema = z.object({
       'pattern-violation',
       'dead-code',
       'spec-intent-mismatch',
+      'architecture-concern',
     ])
     .describe('Type of issue'),
   description: z.string().describe('Description of the issue'),

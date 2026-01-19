@@ -41,8 +41,9 @@ Description: ${task.description}
 
 ## Iteration: ${iteration}/${maxIterations}`;
 
-  // Filter issues for this task
-  const relevantIssues = reviewIssues.filter((i) => i.taskId === task.id);
+  // Filter issues for this task, including cross-task issues (no taskId)
+  // Cross-task issues like architecture concerns apply to all tasks
+  const relevantIssues = reviewIssues.filter((i) => i.taskId === task.id || !i.taskId);
 
   if (relevantIssues.length > 0) {
     prompt += '\n\n## Previous Review Feedback\n';
