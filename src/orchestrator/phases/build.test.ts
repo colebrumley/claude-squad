@@ -2,7 +2,12 @@ import assert from 'node:assert';
 import { describe, test } from 'node:test';
 import { BUILD_PROMPT } from '../../agents/prompts.js';
 import type { ReviewIssue, Task, TaskGraph } from '../../types/index.js';
-import { buildPromptWithFeedback, canStartGroup, getNextParallelGroup } from './build.js';
+import {
+  buildIterationPrompt,
+  buildPromptWithFeedback,
+  canStartGroup,
+  getNextParallelGroup,
+} from './build.js';
 
 // Helper to simulate the issue replacement logic used in executeBuildIteration
 function replaceIssuesForTask(
@@ -341,5 +346,62 @@ describe('Build Phase', () => {
     assert.ok(prompt.includes('Issue C'), 'Should include current issue C');
     assert.ok(!prompt.includes('Issue A'), 'Should NOT include stale issue A');
     assert.ok(!prompt.includes('Issue B'), 'Should NOT include stale issue B');
+  });
+});
+
+describe('buildIterationPrompt', () => {
+  const mockTask = {
+    id: 'task-1',
+    title: 'Test task',
+    description: 'A test task description',
+    dependencies: [],
+    status: 'pending' as const,
+    estimatedIterations: 10,
+  };
+
+  test('includes Iron Law verification section', () => {
+    const prompt = buildIterationPrompt(mockTask, null, 1, 10, []);
+    assert.ok(prompt.includes('Iron Law'));
+    assert.ok(prompt.includes('NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE'));
+  });
+
+  test('includes task details', () => {
+    const prompt = buildIterationPrompt(mockTask, null, 1, 10, []);
+    assert.ok(prompt.includes('task-1'));
+    assert.ok(prompt.includes('Test task'));
+    assert.ok(prompt.includes('A test task description'));
+  });
+
+  test('includes scratchpad when provided', () => {
+    const scratchpad = '## Done\nWrote a test\n## Next\nImplement feature';
+    const prompt = buildIterationPrompt(mockTask, scratchpad, 2, 10, []);
+    assert.ok(prompt.includes('Wrote a test'));
+    assert.ok(prompt.includes('Implement feature'));
+  });
+
+  test('shows first iteration message when no scratchpad', () => {
+    const prompt = buildIterationPrompt(mockTask, null, 1, 10, []);
+    assert.ok(prompt.includes('First iteration'));
+  });
+
+  test('includes review issues when present', () => {
+    const issues: ReviewIssue[] = [
+      {
+        taskId: 'task-1',
+        file: 'src/foo.ts',
+        line: 42,
+        type: 'missing-error-handling',
+        description: 'No error handling',
+        suggestion: 'Add try/catch',
+      },
+    ];
+    const prompt = buildIterationPrompt(mockTask, null, 1, 10, issues);
+    assert.ok(prompt.includes('src/foo.ts:42'));
+    assert.ok(prompt.includes('No error handling'));
+  });
+
+  test('includes iteration count', () => {
+    const prompt = buildIterationPrompt(mockTask, null, 5, 10, []);
+    assert.ok(prompt.includes('5/10'));
   });
 });
