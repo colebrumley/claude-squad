@@ -1,5 +1,4 @@
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-const CHECK_INTERVAL_MS = 30_000; // Check every 30 seconds
 
 export class IdleTimeoutError extends Error {
   public readonly idleMs: number;
@@ -24,6 +23,11 @@ export interface IdleMonitor {
  * Creates an idle monitor that tracks activity and rejects if no activity
  * is recorded within the timeout period.
  *
+ * Uses a resetting timeout approach: a single timeout is set for the full
+ * idle duration, and each call to recordActivity() clears and restarts it.
+ * This eliminates race conditions from polling and ensures the timeout
+ * fires exactly when the idle period is reached.
+ *
  * Usage:
  * ```
  * const monitor = createIdleMonitor();
@@ -45,32 +49,35 @@ export interface IdleMonitor {
 export function createIdleMonitor(): IdleMonitor {
   let lastActivityAt = Date.now();
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let rejectFn: ((error: IdleTimeoutError) => void) | null = null;
+
+  const scheduleTimeout = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    timeoutId = setTimeout(() => {
+      const idleMs = Date.now() - lastActivityAt;
+      rejectFn?.(new IdleTimeoutError(idleMs));
+    }, IDLE_TIMEOUT_MS);
+  };
 
   const promise = new Promise<never>((_, reject) => {
-    const check = () => {
-      const idleMs = Date.now() - lastActivityAt;
-      if (idleMs >= IDLE_TIMEOUT_MS) {
-        reject(new IdleTimeoutError(idleMs));
-      } else {
-        // Schedule next check
-        timeoutId = setTimeout(check, CHECK_INTERVAL_MS);
-      }
-    };
-
-    // Start checking after the first interval
-    timeoutId = setTimeout(check, CHECK_INTERVAL_MS);
+    rejectFn = reject;
+    scheduleTimeout();
   });
 
   return {
     promise,
     recordActivity: () => {
       lastActivityAt = Date.now();
+      scheduleTimeout();
     },
     cancel: () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;
       }
+      rejectFn = null;
     },
   };
 }
