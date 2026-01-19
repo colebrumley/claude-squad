@@ -38,7 +38,7 @@ export class WorktreeManager {
 
     // Create worktree with new branch
     await execAsync(
-      `git worktree add -b "${branchName}" "${worktreePath}" ${this.config.baseBranch}`,
+      `git worktree add -b "${branchName}" "${worktreePath}" "${this.config.baseBranch}"`,
       { cwd: this.config.repoDir }
     );
 
@@ -60,7 +60,7 @@ export class WorktreeManager {
     }
 
     // Switch to base branch in main repo
-    await execAsync(`git checkout ${this.config.baseBranch}`, { cwd: this.config.repoDir });
+    await execAsync(`git checkout "${this.config.baseBranch}"`, { cwd: this.config.repoDir });
 
     // Attempt merge
     try {
