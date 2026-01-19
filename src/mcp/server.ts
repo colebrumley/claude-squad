@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -17,6 +17,7 @@ import {
   SetLoopReviewResultSchema,
   SetReviewResultSchema,
   UpdateLoopStatusSchema,
+  WriteScratchpadSchema,
   WriteTaskSchema,
 } from './tools.js';
 
@@ -383,6 +384,21 @@ export function createMCPServer(runId: string, dbPath: string) {
           ],
         },
       },
+      {
+        name: 'write_scratchpad',
+        description: 'Write iteration scratchpad for handoff to next iteration',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            loopId: { type: 'string', description: 'The loop this scratchpad belongs to' },
+            done: { type: 'string', description: 'What you completed this iteration' },
+            testStatus: { type: 'string', description: 'Test results (pass/fail + key output)' },
+            nextStep: { type: 'string', description: 'What the next iteration should do' },
+            blockers: { type: 'string', description: 'Any blockers, or "none"' },
+          },
+          required: ['loopId', 'done', 'testStatus', 'nextStep', 'blockers'],
+        },
+      },
     ],
   }));
 
@@ -666,6 +682,53 @@ export function createMCPServer(runId: string, dbPath: string) {
         result = {
           content: [{ type: 'text', text: `Codebase analysis stored: ${analysis.projectType}` }],
         };
+        break;
+      }
+
+      case 'write_scratchpad': {
+        const scratchpad = WriteScratchpadSchema.parse(args);
+
+        // Look up worktree path for this loop
+        const loopRow = db
+          .prepare(`
+          SELECT worktree_path FROM loops WHERE id = ?
+        `)
+          .get(scratchpad.loopId) as { worktree_path: string | null } | undefined;
+
+        let scratchpadPath: string;
+        if (loopRow?.worktree_path) {
+          // Write to worktree
+          scratchpadPath = join(loopRow.worktree_path, '.sq-scratchpad.md');
+        } else {
+          // Write to state dir
+          const scratchpadDir = join(dirname(dbPath), 'scratchpads');
+          if (!existsSync(scratchpadDir)) {
+            mkdirSync(scratchpadDir, { recursive: true });
+          }
+          scratchpadPath = join(scratchpadDir, `${scratchpad.loopId}.md`);
+        }
+
+        const content = `# Iteration Scratchpad
+
+## Done this iteration
+${scratchpad.done}
+
+## Test status
+${scratchpad.testStatus}
+
+## Next step
+${scratchpad.nextStep}
+
+## Blockers
+${scratchpad.blockers}
+`;
+
+        try {
+          writeFileSync(scratchpadPath, content, 'utf-8');
+          result = { content: [{ type: 'text', text: `Scratchpad written to ${scratchpadPath}` }] };
+        } catch (e) {
+          result = { content: [{ type: 'text', text: `Failed to write scratchpad: ${e}` }] };
+        }
         break;
       }
 

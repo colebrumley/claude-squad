@@ -1,4 +1,5 @@
 import { exec } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { query } from '@anthropic-ai/claude-agent-sdk';
@@ -59,32 +60,55 @@ function filesChangedBetweenStates(before: string, after: string): boolean {
   return before !== after;
 }
 
-export function buildPromptWithFeedback(
+/**
+ * Reads the scratchpad for a loop if it exists.
+ * Checks worktree path first, then falls back to state directory.
+ */
+function readScratchpad(loopCwd: string, loopId: string, stateDir: string): string | null {
+  // Try worktree location first
+  const worktreePath = join(loopCwd, '.sq-scratchpad.md');
+  if (existsSync(worktreePath)) {
+    return readFileSync(worktreePath, 'utf-8');
+  }
+
+  // Fall back to state dir
+  const statePath = join(stateDir, 'scratchpads', `${loopId}.md`);
+  if (existsSync(statePath)) {
+    return readFileSync(statePath, 'utf-8');
+  }
+
+  return null;
+}
+
+export function buildIterationPrompt(
   task: Task,
-  reviewIssues: ReviewIssue[],
+  scratchpad: string | null,
   iteration: number,
-  maxIterations: number
+  maxIterations: number,
+  reviewIssues: ReviewIssue[]
 ): string {
   // Static content first for API-level prompt caching
   let prompt = BUILD_PROMPT;
 
-  // Variable content after the static prefix
+  // Task details
   prompt += `
 
-## Current Task:
-ID: ${task.id}
-Title: ${task.title}
-Description: ${task.description}
+## Current Task
+**ID:** ${task.id}
+**Title:** ${task.title}
+**Description:** ${task.description}
 
-## Iteration: ${iteration}/${maxIterations}`;
+## Iteration: ${iteration}/${maxIterations}
+
+## Scratchpad (from previous iteration)
+${scratchpad || 'First iteration - no previous work. Start by understanding the task and writing a failing test.'}`;
 
   // Filter issues for this task, including cross-task issues (no taskId)
-  // Cross-task issues like architecture concerns apply to all tasks
   const relevantIssues = reviewIssues.filter((i) => i.taskId === task.id || !i.taskId);
 
   if (relevantIssues.length > 0) {
-    prompt += '\n\n## Previous Review Feedback\n';
-    prompt += 'Your last implementation had these issues. Fix them:\n\n';
+    prompt += '\n\n## Review Feedback from Previous Attempt\n';
+    prompt += 'Fix these issues:\n\n';
     for (const issue of relevantIssues) {
       const location = issue.line ? `${issue.file}:${issue.line}` : issue.file;
       prompt += `- **${location}** (${issue.type}): ${issue.description}\n`;
@@ -93,6 +117,16 @@ Description: ${task.description}
   }
 
   return prompt;
+}
+
+/** @deprecated Use buildIterationPrompt instead */
+export function buildPromptWithFeedback(
+  task: Task,
+  reviewIssues: ReviewIssue[],
+  iteration: number,
+  maxIterations: number
+): string {
+  return buildIterationPrompt(task, null, iteration, maxIterations, reviewIssues);
 }
 
 export function getNextParallelGroup(graph: TaskGraph, completedTasks: string[]): string[] | null {
@@ -221,15 +255,20 @@ export async function executeBuildIteration(
   // Execute one iteration for each active loop
   const loopPromises = loopManager.getActiveLoops().map(async (loop) => {
     const task = state.tasks.find((t) => t.id === loop.taskIds[0])!;
-    const prompt = buildPromptWithFeedback(
-      task,
-      state.context.reviewIssues ?? [],
-      loop.iteration + 1,
-      loop.maxIterations
-    );
 
     // Use worktree path if available, otherwise fall back to process.cwd()
     const loopCwd = loop.worktreePath || process.cwd();
+
+    // Read scratchpad from previous iteration
+    const scratchpad = readScratchpad(loopCwd, loop.loopId, state.stateDir);
+
+    const prompt = buildIterationPrompt(
+      task,
+      scratchpad,
+      loop.iteration + 1,
+      loop.maxIterations,
+      state.context.reviewIssues ?? []
+    );
     const model = getModelId(effortConfig.models.build);
     const config = createAgentConfig('build', loopCwd, state.runId, dbPath, model);
 
@@ -381,6 +420,24 @@ export async function executeBuildIteration(
 
       const durationMs = Date.now() - startTime;
       await writer?.complete(costUsd, durationMs);
+
+      // Check for iteration progress signal (Ralph-style micro-iteration)
+      if (output.includes('ITERATION_DONE')) {
+        // Capture git state after iteration
+        const gitStateAfter = await getGitState(loopCwd);
+        const filesChanged = filesChangedBetweenStates(gitStateBefore, gitStateAfter);
+
+        loopManager.incrementIteration(loop.loopId);
+        updateStuckIndicators(loop, null, filesChanged);
+
+        return {
+          loopId: loop.loopId,
+          taskId: task.id,
+          completed: false,
+          madeProgress: true,
+          costUsd,
+        };
+      }
 
       // Check for completion signal
       if (output.includes('TASK_COMPLETE')) {
