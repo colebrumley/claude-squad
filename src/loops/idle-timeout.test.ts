@@ -17,7 +17,7 @@ describe('createIdleMonitor', () => {
   it('rejects with IdleTimeoutError after idle period', async () => {
     const monitor = createIdleMonitor();
     let rejected = false;
-    let error: IdleTimeoutError | null = null;
+    let error: unknown = null;
 
     monitor.promise.catch((e) => {
       rejected = true;
@@ -33,8 +33,10 @@ describe('createIdleMonitor', () => {
     mock.timers.tick(1);
     await flushMicrotasks();
     assert.strictEqual(rejected, true, 'Should reject after timeout');
-    assert.ok(error instanceof IdleTimeoutError);
-    assert.ok(error!.idleMs >= 5 * 60 * 1000);
+    if (!(error instanceof IdleTimeoutError)) {
+      assert.fail('Expected IdleTimeoutError');
+    }
+    assert.ok(error.idleMs >= 5 * 60 * 1000);
 
     monitor.cancel();
   });
@@ -114,7 +116,7 @@ describe('createIdleMonitor', () => {
 
   it('reports accurate idle time in error', async () => {
     const monitor = createIdleMonitor();
-    let error: IdleTimeoutError | null = null;
+    let error: unknown = null;
 
     monitor.promise.catch((e) => {
       error = e;
@@ -124,9 +126,11 @@ describe('createIdleMonitor', () => {
     mock.timers.tick(5 * 60 * 1000);
     await flushMicrotasks();
 
-    assert.ok(error instanceof IdleTimeoutError);
+    if (!(error instanceof IdleTimeoutError)) {
+      assert.fail('Expected IdleTimeoutError');
+    }
     // Should be close to 5 minutes (300000ms)
-    assert.ok(error!.idleMs >= 300000, `Expected idleMs >= 300000, got ${error!.idleMs}`);
+    assert.ok(error.idleMs >= 300000, `Expected idleMs >= 300000, got ${error.idleMs}`);
 
     monitor.cancel();
   });

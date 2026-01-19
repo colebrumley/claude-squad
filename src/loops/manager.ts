@@ -154,20 +154,6 @@ export class LoopManager {
     }
   }
 
-  needsReview(loopId: string): boolean {
-    const loop = this.loops.get(loopId);
-    if (!loop) return false;
-
-    return loop.iteration - loop.lastReviewAt >= loop.reviewInterval;
-  }
-
-  markReviewed(loopId: string): void {
-    const loop = this.loops.get(loopId);
-    if (loop) {
-      loop.lastReviewAt = loop.iteration;
-    }
-  }
-
   appendOutput(loopId: string, text: string): void {
     const loop = this.loops.get(loopId);
     if (loop) {

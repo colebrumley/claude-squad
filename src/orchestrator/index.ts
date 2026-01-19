@@ -212,16 +212,6 @@ export async function runOrchestrator(
             'Loop stuck, transitioning to revise phase'
           );
           state.phase = 'revise';
-        } else if (result.needsReview) {
-          callbacks.tracer?.logDecision(
-            'review_trigger',
-            { phase: 'build', reason: 'interval' },
-            'review_scheduled',
-            'Review interval reached during build'
-          );
-          state.pendingReview = true;
-          state.reviewType = 'build';
-          state.phase = 'review';
         } else if (!getNextParallelGroup(state.taskGraph!, state.completedTasks)) {
           // All tasks complete
           callbacks.tracer?.logDecision(

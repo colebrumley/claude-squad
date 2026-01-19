@@ -25,7 +25,6 @@ export function detectStuck(
 ): StuckResult | null {
   const { stuckIndicators, iteration, maxIterations } = loop;
 
-  // Check max iterations first
   if (iteration > maxIterations) {
     const result = {
       reason: StuckReason.MAX_ITERATIONS,
@@ -48,7 +47,6 @@ export function detectStuck(
     return result;
   }
 
-  // Check repeated same error
   if (stuckIndicators.sameErrorCount >= config.stuckThreshold) {
     const result = {
       reason: StuckReason.REPEATED_ERROR,
@@ -71,7 +69,6 @@ export function detectStuck(
     return result;
   }
 
-  // Check no file changes (no progress)
   const iterationsSinceChange = iteration - stuckIndicators.lastFileChangeIteration;
   if (
     stuckIndicators.noProgressCount >= config.stuckThreshold ||
@@ -98,7 +95,6 @@ export function detectStuck(
     return result;
   }
 
-  // Log not stuck decision
   tracer?.logDecision(
     'stuck_detection',
     {

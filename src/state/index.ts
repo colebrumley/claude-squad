@@ -167,6 +167,9 @@ export function saveRun(state: OrchestratorState): void {
 
     // Persist phase history to database
     savePhaseHistory(state);
+
+    // Persist phase costs to database
+    savePhaseCosts(state);
   });
 
   saveTransaction();
@@ -217,6 +220,26 @@ function savePhaseHistory(state: OrchestratorState): void {
     const entry = state.phaseHistory[i];
     // Use the cost stored in the entry (incremental cost for this phase execution)
     stmt.run(state.runId, entry.phase, entry.success ? 1 : 0, entry.summary, entry.costUsd);
+  }
+}
+
+/**
+ * Persist phase costs to the database.
+ * Uses upsert to handle both new and existing entries.
+ */
+function savePhaseCosts(state: OrchestratorState): void {
+  const db = getDatabase();
+
+  const stmt = db.prepare(`
+    INSERT INTO phase_costs (run_id, phase, cost_usd)
+    VALUES (?, ?, ?)
+    ON CONFLICT(run_id, phase) DO UPDATE SET cost_usd = excluded.cost_usd
+  `);
+
+  for (const [phase, costUsd] of Object.entries(state.costs.phaseCosts)) {
+    if (costUsd > 0) {
+      stmt.run(state.runId, phase, costUsd);
+    }
   }
 }
 

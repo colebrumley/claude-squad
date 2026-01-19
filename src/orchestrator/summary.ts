@@ -6,7 +6,6 @@ import type { OrchestratorState } from '../types/index.js';
 export function printDryRunSummary(state: OrchestratorState): void {
   console.log('\n=== DRY RUN SUMMARY ===\n');
 
-  // Print tasks with dependencies
   console.log(`Tasks (${state.tasks.length}):`);
   for (const task of state.tasks) {
     const deps =
@@ -16,7 +15,6 @@ export function printDryRunSummary(state: OrchestratorState): void {
     console.log(`  [${task.id}] ${task.title} - ${deps}`);
   }
 
-  // Print execution plan
   if (state.taskGraph) {
     console.log('\nExecution Plan:');
     for (let i = 0; i < state.taskGraph.parallelGroups.length; i++) {
@@ -25,7 +23,6 @@ export function printDryRunSummary(state: OrchestratorState): void {
       console.log(`  Group ${i + 1}${parallel}: [${group.join(', ')}]`);
     }
 
-    // Calculate estimated agent spawns (one per task)
     const totalTasks = state.tasks.length;
     const totalGroups = state.taskGraph.parallelGroups.length;
 

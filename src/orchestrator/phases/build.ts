@@ -93,14 +93,13 @@ export function canStartGroup(
 export interface BuildResult {
   completedTasks: string[];
   activeLoops: LoopState[];
-  needsReview: boolean;
   stuck: boolean;
   pendingConflicts: Array<{
     loopId: string;
     taskId: string;
     conflictFiles: string[];
   }>;
-  loopCosts: Record<string, number>; // loopId -> cost for this iteration
+  loopCosts: Record<string, number>;
 }
 
 export async function executeBuildIteration(
@@ -126,7 +125,6 @@ export async function executeBuildIteration(
     return {
       completedTasks: state.completedTasks,
       activeLoops: loopManager.getAllLoops(),
-      needsReview: false,
       stuck: true,
       pendingConflicts: [],
       loopCosts: {},
@@ -151,7 +149,6 @@ export async function executeBuildIteration(
       return {
         completedTasks: state.completedTasks,
         activeLoops: loopManager.getAllLoops(),
-        needsReview: true,
         stuck: true,
         pendingConflicts: [],
         loopCosts: {},
@@ -170,8 +167,24 @@ export async function executeBuildIteration(
   // Spawn new loops for available tasks
   const nextGroup = getNextParallelGroup(graph, state.completedTasks);
   if (nextGroup && canStartGroup(nextGroup, state.completedTasks, state.tasks)) {
+    // Get task IDs that already have active loops (to avoid duplicates)
+    const tasksWithActiveLoops = new Set(
+      loopManager
+        .getAllLoops()
+        .filter(
+          (l) => l.status === 'running' || l.status === 'pending' || l.status === 'interrupted'
+        )
+        .flatMap((l) => l.taskIds)
+    );
+
     while (loopManager.canSpawnMore() && nextGroup.length > 0) {
       const taskId = nextGroup.shift()!;
+
+      // Skip if task already has an active loop (prevents duplicate scaffolding)
+      if (tasksWithActiveLoops.has(taskId)) {
+        continue;
+      }
+
       const loop = await loopManager.createLoop([taskId], state.tasks);
       loopManager.updateLoopStatus(loop.loopId, 'running');
       // Notify TUI immediately so it can display the loop and receive output updates
@@ -347,12 +360,16 @@ export async function executeBuildIteration(
         loopManager.updateReviewStatus(loop.loopId, 'in_progress');
         const otherLoopsSummary = loopManager.getOtherLoopsSummary(loop.loopId, state.tasks);
 
+        // Emit review header line once (not per-delta, which fragments the output)
+        onLoopOutput?.(loop.loopId, '[review] Reviewing task completion...\n');
+        loopManager.appendOutput(loop.loopId, '[review] Reviewing task completion...');
+
         const reviewResult = await executeLoopReview(
           state,
           loop,
           task,
           otherLoopsSummary,
-          onLoopOutput ? (text) => onLoopOutput(loop.loopId, `[review] ${text}`) : undefined,
+          onLoopOutput ? (text) => onLoopOutput(loop.loopId, text) : undefined,
           tracer
         );
 
@@ -572,17 +589,11 @@ export async function executeBuildIteration(
     return {
       completedTasks: [...state.completedTasks, ...newlyCompleted],
       activeLoops: loopManager.getAllLoops(),
-      needsReview: false,
       stuck: false,
       pendingConflicts,
       loopCosts,
     };
   }
-
-  // Check if any loop needs review (legacy interval-based review)
-  const needsReview = loopManager
-    .getActiveLoops()
-    .some((loop) => loopManager.needsReview(loop.loopId));
 
   // Check if any loop hit idle timeout or exceeded max revisions
   const hadIdleTimeout = results.some((r) => 'idleTimeout' in r && r.idleTimeout);
@@ -596,7 +607,6 @@ export async function executeBuildIteration(
   return {
     completedTasks: [...state.completedTasks, ...newlyCompleted],
     activeLoops: loopManager.getAllLoops(),
-    needsReview,
     stuck: isStuck,
     pendingConflicts: [],
     loopCosts,

@@ -386,6 +386,38 @@ describe('State Persistence', () => {
     assert.strictEqual(loaded.costs.phaseCosts.review, 0);
   });
 
+  test('saveRun persists phase costs to database', () => {
+    const dbPath = join(tempDir, 'state.db');
+    createDatabase(dbPath);
+
+    const state = initializeState({
+      specPath: '/path/to/spec.md',
+      effort: 'medium',
+      stateDir: tempDir,
+      maxLoops: 4,
+      maxIterations: 20,
+      useWorktrees: false,
+    });
+
+    // Set phase costs directly in state (simulating orchestrator behavior)
+    state.costs.phaseCosts.enumerate = 0.15;
+    state.costs.phaseCosts.plan = 0.25;
+    state.costs.phaseCosts.build = 1.5;
+    state.costs.totalCostUsd = 1.9;
+
+    saveRun(state);
+    closeDatabase();
+
+    // Load state fresh and verify phase costs were persisted
+    const loaded = loadState(tempDir);
+
+    assert.ok(loaded);
+    assert.strictEqual(loaded.costs.phaseCosts.enumerate, 0.15);
+    assert.strictEqual(loaded.costs.phaseCosts.plan, 0.25);
+    assert.strictEqual(loaded.costs.phaseCosts.build, 1.5);
+    assert.strictEqual(loaded.costs.phaseCosts.review, 0);
+  });
+
   test('loadState restores phase history', () => {
     const dbPath = join(tempDir, 'state.db');
     createDatabase(dbPath);
