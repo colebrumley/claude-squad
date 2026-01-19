@@ -421,6 +421,24 @@ export async function executeBuildIteration(
       const durationMs = Date.now() - startTime;
       await writer?.complete(costUsd, durationMs);
 
+      // Check for iteration progress signal (Ralph-style micro-iteration)
+      if (output.includes('ITERATION_DONE')) {
+        // Capture git state after iteration
+        const gitStateAfter = await getGitState(loopCwd);
+        const filesChanged = filesChangedBetweenStates(gitStateBefore, gitStateAfter);
+
+        loopManager.incrementIteration(loop.loopId);
+        updateStuckIndicators(loop, null, filesChanged);
+
+        return {
+          loopId: loop.loopId,
+          taskId: task.id,
+          completed: false,
+          madeProgress: true,
+          costUsd,
+        };
+      }
+
       // Check for completion signal
       if (output.includes('TASK_COMPLETE')) {
         // Run per-loop review before considering task complete
