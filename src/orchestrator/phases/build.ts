@@ -80,32 +80,35 @@ function readScratchpad(loopCwd: string, loopId: string, stateDir: string): stri
   return null;
 }
 
-export function buildPromptWithFeedback(
+export function buildIterationPrompt(
   task: Task,
-  reviewIssues: ReviewIssue[],
+  scratchpad: string | null,
   iteration: number,
-  maxIterations: number
+  maxIterations: number,
+  reviewIssues: ReviewIssue[]
 ): string {
   // Static content first for API-level prompt caching
   let prompt = BUILD_PROMPT;
 
-  // Variable content after the static prefix
+  // Task details
   prompt += `
 
-## Current Task:
-ID: ${task.id}
-Title: ${task.title}
-Description: ${task.description}
+## Current Task
+**ID:** ${task.id}
+**Title:** ${task.title}
+**Description:** ${task.description}
 
-## Iteration: ${iteration}/${maxIterations}`;
+## Iteration: ${iteration}/${maxIterations}
+
+## Scratchpad (from previous iteration)
+${scratchpad || 'First iteration - no previous work. Start by understanding the task and writing a failing test.'}`;
 
   // Filter issues for this task, including cross-task issues (no taskId)
-  // Cross-task issues like architecture concerns apply to all tasks
   const relevantIssues = reviewIssues.filter((i) => i.taskId === task.id || !i.taskId);
 
   if (relevantIssues.length > 0) {
-    prompt += '\n\n## Previous Review Feedback\n';
-    prompt += 'Your last implementation had these issues. Fix them:\n\n';
+    prompt += '\n\n## Review Feedback from Previous Attempt\n';
+    prompt += 'Fix these issues:\n\n';
     for (const issue of relevantIssues) {
       const location = issue.line ? `${issue.file}:${issue.line}` : issue.file;
       prompt += `- **${location}** (${issue.type}): ${issue.description}\n`;
@@ -114,6 +117,16 @@ Description: ${task.description}
   }
 
   return prompt;
+}
+
+/** @deprecated Use buildIterationPrompt instead */
+export function buildPromptWithFeedback(
+  task: Task,
+  reviewIssues: ReviewIssue[],
+  iteration: number,
+  maxIterations: number
+): string {
+  return buildIterationPrompt(task, null, iteration, maxIterations, reviewIssues);
 }
 
 export function getNextParallelGroup(graph: TaskGraph, completedTasks: string[]): string[] | null {
