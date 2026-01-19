@@ -1,13 +1,18 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { ENUMERATE_PROMPT, SCAFFOLD_SECTION_ENUMERATE } from '../../agents/prompts.js';
+import {
+  CODEBASE_ANALYSIS_SECTION,
+  EMPTY_PROJECT_ANALYSIS,
+  ENUMERATE_PROMPT,
+  SCAFFOLD_SECTION_ENUMERATE,
+} from '../../agents/prompts.js';
 import { createAgentConfig } from '../../agents/spawn.js';
 import { getEffortConfig, getModelId } from '../../config/effort.js';
 import { getDatabase } from '../../db/index.js';
 import type { DebugTracer } from '../../debug/index.js';
 import { MCP_SERVER_PATH } from '../../paths.js';
-import type { OrchestratorState, Task } from '../../types/index.js';
+import type { CodebaseAnalysis, OrchestratorState, Task } from '../../types/index.js';
 import {
   type StreamEvent,
   isResultMessage,
@@ -28,6 +33,37 @@ const IGNORED_ENTRIES = new Set([
   'node_modules',
   '.DS_Store',
 ]);
+
+/**
+ * Format codebase analysis for injection into ENUMERATE_PROMPT.
+ */
+function formatCodebaseAnalysis(analysis: CodebaseAnalysis | null): string {
+  if (!analysis) {
+    return EMPTY_PROJECT_ANALYSIS;
+  }
+
+  if (analysis.projectType === 'empty/greenfield') {
+    return EMPTY_PROJECT_ANALYSIS;
+  }
+
+  return CODEBASE_ANALYSIS_SECTION.replace('{{projectType}}', analysis.projectType)
+    .replace('{{techStack}}', analysis.techStack.join(', ') || 'None detected')
+    .replace('{{directoryStructure}}', analysis.directoryStructure)
+    .replace(
+      '{{existingFeatures}}',
+      analysis.existingFeatures.length > 0
+        ? analysis.existingFeatures.map((f) => `- ${f}`).join('\n')
+        : '- None'
+    )
+    .replace('{{entryPoints}}', analysis.entryPoints.join(', ') || 'None detected')
+    .replace(
+      '{{patterns}}',
+      analysis.patterns.length > 0
+        ? analysis.patterns.map((p) => `- ${p}`).join('\n')
+        : '- None detected'
+    )
+    .replace('{{summary}}', analysis.summary);
+}
 
 /**
  * Check if a directory is effectively empty (new project).
@@ -156,7 +192,13 @@ export async function executeEnumerate(
       ? state.wasEmptyProject
       : await isEmptyProject(cwd, state.specPath);
   const scaffoldSection = isEmpty ? SCAFFOLD_SECTION_ENUMERATE : '';
-  const basePrompt = ENUMERATE_PROMPT.replace('{{SCAFFOLD_SECTION}}', scaffoldSection);
+
+  // Inject codebase analysis from ANALYZE phase
+  const codebaseAnalysisSection = formatCodebaseAnalysis(state.codebaseAnalysis);
+  const basePrompt = ENUMERATE_PROMPT.replace('{{SCAFFOLD_SECTION}}', scaffoldSection).replace(
+    '{{CODEBASE_ANALYSIS}}',
+    codebaseAnalysisSection
+  );
 
   const prompt = `${basePrompt}
 
