@@ -34,7 +34,8 @@ export async function isEmptyProject(dir: string, specPath: string): Promise<boo
     const entries = await readdir(dir);
     const significantEntries = entries.filter((entry) => {
       if (IGNORED_ENTRIES.has(entry)) return false;
-      if (specPath.endsWith(entry)) return false;
+      const fullPath = join(dir, entry);
+      if (fullPath === specPath) return false;
       if (entry.endsWith('.md')) return false;
       return true;
     });
