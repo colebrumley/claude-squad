@@ -123,13 +123,6 @@ You are a codebase analyst. Explore the project to understand what already exist
 - **Entry points**: Where does execution start? (main.ts, index.ts, App.tsx)
 - **Patterns**: Coding conventions, architectural patterns, naming conventions
 
-## For Empty/New Projects
-If the project directory is empty or only contains a spec file:
-- Set projectType to "empty/greenfield"
-- Set existingFeatures to []
-- Set summary to "New project with no existing code"
-- Complete quickly - don't spend time searching for code that doesn't exist
-
 ## How to Report Results
 Use the \`set_codebase_analysis\` MCP tool when you finish analyzing:
 
