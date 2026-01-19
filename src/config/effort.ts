@@ -15,6 +15,7 @@ export function getModelId(tier: ModelTier): string {
 type AgentPhase = Exclude<Phase, 'complete'>;
 
 export interface EffortConfig {
+  reviewAfterAnalyze: boolean;
   reviewAfterEnumerate: boolean;
   reviewAfterPlan: boolean;
   reviewInterval: number; // Review every N iterations in build loops
@@ -35,6 +36,7 @@ export interface EffortConfig {
 
 const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
   low: {
+    reviewAfterAnalyze: false,
     reviewAfterEnumerate: false,
     reviewAfterPlan: false,
     reviewInterval: 10,
@@ -45,6 +47,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     maxRevisionAttempts: 2,
     costLimits: { perLoopMaxUsd: 1.0, perPhaseMaxUsd: 2.0, perRunMaxUsd: 5.0 },
     models: {
+      analyze: 'haiku',
       enumerate: 'haiku',
       plan: 'haiku',
       build: 'opus',
@@ -54,6 +57,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     },
   },
   medium: {
+    reviewAfterAnalyze: false,
     reviewAfterEnumerate: false,
     reviewAfterPlan: true,
     reviewInterval: 5,
@@ -64,6 +68,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     maxRevisionAttempts: 3,
     costLimits: { perLoopMaxUsd: 2.0, perPhaseMaxUsd: 5.0, perRunMaxUsd: 15.0 },
     models: {
+      analyze: 'sonnet',
       enumerate: 'sonnet',
       plan: 'sonnet',
       build: 'opus',
@@ -73,6 +78,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     },
   },
   high: {
+    reviewAfterAnalyze: false,
     reviewAfterEnumerate: true,
     reviewAfterPlan: true,
     reviewInterval: 3,
@@ -83,6 +89,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     maxRevisionAttempts: 4,
     costLimits: { perLoopMaxUsd: 5.0, perPhaseMaxUsd: 10.0, perRunMaxUsd: 30.0 },
     models: {
+      analyze: 'sonnet',
       enumerate: 'sonnet',
       plan: 'opus',
       build: 'opus',
@@ -92,6 +99,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     },
   },
   max: {
+    reviewAfterAnalyze: true,
     reviewAfterEnumerate: true,
     reviewAfterPlan: true,
     reviewInterval: 1,
@@ -102,6 +110,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     maxRevisionAttempts: 5,
     costLimits: { perLoopMaxUsd: 10.0, perPhaseMaxUsd: 25.0, perRunMaxUsd: 100.0 },
     models: {
+      analyze: 'opus',
       enumerate: 'opus',
       plan: 'opus',
       build: 'opus',
