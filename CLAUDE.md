@@ -49,17 +49,19 @@ npm run typecheck     # Type check without emitting
 ### Phase State Machine
 
 ```
-ENUMERATE → [Review?] → PLAN → [Review?] → BUILD → [CONFLICT?] → [Review?] → [REVISE] → COMPLETE
-     ↓                     ↓           ↓            ↓              ↓           ↓
-  review?              review?    per-loop      merge          interval    review
-  (effort)             (effort)   reviews     conflict        review      failed
-                                  on task                     (effort)
-                                  complete
+ANALYZE → [Review?] → ENUMERATE → [Review?] → PLAN → [Review?] → BUILD → [CONFLICT?] → [Review?] → [REVISE] → COMPLETE
+    ↓                      ↓                     ↓           ↓            ↓              ↓           ↓
+ review?               review?               review?    per-loop      merge          interval    review
+ (max only)            (effort)              (effort)   reviews     conflict        review      failed
+                                                        on task                     (effort)
+                                                        complete
 ```
 
 **Phase descriptions**:
 
-- **ENUMERATE**: Agent reads spec with READ-ONLY tools (Read, Glob, Grep), calls `write_task()` MCP tool for each discrete task. Detects empty projects and includes scaffold instructions only for new codebases.
+- **ANALYZE**: First phase that explores the existing codebase before task creation. Agent uses READ-ONLY tools (Read, Glob, Grep) to understand project type, tech stack, directory structure, existing features, entry points, and coding patterns. Calls `set_codebase_analysis()` MCP tool to store results. For empty projects, skips agent and stores minimal analysis. Results are injected into ENUMERATE prompt.
+
+- **ENUMERATE**: Agent reads spec with READ-ONLY tools (Read, Glob, Grep), calls `write_task()` MCP tool for each discrete task. Receives codebase analysis from ANALYZE phase to avoid creating tasks for existing features. Includes scaffold instructions only for new codebases.
 
 - **PLAN**: Agent receives task list as JSON, analyzes dependencies, calls `add_plan_group(groupIndex, taskIds)` to create parallel execution groups. Group 0 runs first, then group 1, etc. Tasks in the same group run concurrently.
 
@@ -108,6 +110,9 @@ Agents communicate via MCP tools instead of outputting JSON. This eliminates par
 **Context**:
 - `add_context(type, content)` - Log discoveries, errors, decisions (type: 'discovery' | 'error' | 'decision')
 
+**Codebase Analysis**:
+- `set_codebase_analysis(projectType, techStack, directoryStructure, existingFeatures, entryPoints, patterns, summary)` - Store analysis from ANALYZE phase
+
 ### Git Worktree Isolation
 
 By default, each parallel agent loop runs in an isolated git worktree to prevent conflicts:
@@ -123,7 +128,7 @@ Disable with `--no-worktrees` for simpler single-agent runs.
 ### Key Directories
 
 - `src/orchestrator/` - Core state machine and phase implementations
-- `src/orchestrator/phases/` - Individual phase logic (enumerate, plan, build, review, conflict, revise)
+- `src/orchestrator/phases/` - Individual phase logic (analyze, enumerate, plan, build, review, conflict, revise)
 - `src/agents/` - Agent spawning configs and system prompts
 - `src/loops/` - LoopManager for parallel execution, stuck detection, idle timeout
 - `src/worktrees/` - Git worktree management for parallel isolation
@@ -140,6 +145,7 @@ The `--effort` flag controls orchestrator behavior:
 
 | Setting | low | medium | high | max |
 |---------|-----|--------|------|-----|
+| **Review after analyze** | ✗ | ✗ | ✗ | ✓ |
 | **Review after enumerate** | ✗ | ✗ | ✓ | ✓ |
 | **Review after plan** | ✗ | ✓ | ✓ | ✓ |
 | **Review interval** (iterations) | 10 | 5 | 3 | 1 |
@@ -155,6 +161,7 @@ The `--effort` flag controls orchestrator behavior:
 
 | Phase | low | medium | high | max |
 |-------|-----|--------|------|-----|
+| analyze | haiku | sonnet | sonnet | opus |
 | enumerate | haiku | sonnet | sonnet | opus |
 | plan | haiku | sonnet | opus | opus |
 | build | opus | opus | opus | opus |
@@ -199,12 +206,12 @@ When exceeded: adds error to context, marks loops failed, transitions to COMPLET
 ### Agent Spawning
 
 Phase-specific tool allowlists (`src/agents/spawn.ts`):
-- **Enumerate/Plan**: Read, Glob, Grep only (read-only exploration)
+- **Analyze/Enumerate/Plan**: Read, Glob, Grep only (read-only exploration)
 - **Build**: Read, Edit, Write, Bash, Glob, Grep + all MCP tools
 - **Review**: Read, Glob, Grep, Bash + all MCP tools (no editing)
 - **Conflict**: Read, Edit, Write, Bash, Glob, Grep + MCP tools
 
-Max turns per phase: enumerate=50, plan=30, build=100, review=50, revise=100, conflict=15
+Max turns per phase: analyze=30, enumerate=50, plan=30, build=100, review=50, revise=100, conflict=15
 
 Permission mode: `bypassPermissions` (auto-accept all prompts for unattended execution)
 
