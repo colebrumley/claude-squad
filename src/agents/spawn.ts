@@ -35,6 +35,7 @@ const MCP_TOOLS = [
 ];
 
 const PHASE_TOOLS: Record<Phase, string[]> = {
+  analyze: ['Read', 'Glob', 'Grep'],
   enumerate: ['Read', 'Glob', 'Grep'],
   plan: ['Read', 'Glob', 'Grep'],
   build: ['Read', 'Edit', 'Write', 'Bash', 'Glob', 'Grep'],
@@ -45,6 +46,7 @@ const PHASE_TOOLS: Record<Phase, string[]> = {
 };
 
 const PHASE_MAX_TURNS: Record<Phase, number> = {
+  analyze: 30,
   enumerate: 50,
   plan: 30,
   build: 100,
@@ -55,7 +57,7 @@ const PHASE_MAX_TURNS: Record<Phase, number> = {
 };
 
 // Phases that have access to the MCP database server
-const MCP_PHASES = ['enumerate', 'plan', 'build', 'review', 'revise'];
+const MCP_PHASES = ['analyze', 'enumerate', 'plan', 'build', 'review', 'revise'];
 
 /**
  * Create agent config with optional MCP server for database access.
