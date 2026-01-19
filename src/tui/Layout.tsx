@@ -84,34 +84,58 @@ export function Layout({
       <Box flexGrow={1} overflow="hidden">
         {/* Loop columns container */}
         <Box width={showTaskPanel ? '70%' : '100%'} height="100%">
-          {visibleLoops.map((loop, index) => {
-            const task = state.tasks.find((t) => t.id === loop.taskIds[0]);
-            // focusedLoopIndex is global, convert to check if this visible column is focused
-            const globalIndex = startIndex + index;
-            const isFocused = focusedLoopIndex === globalIndex;
-            return (
-              <Column
-                key={loop.loopId}
-                loop={loop}
-                taskTitle={task?.title || 'Unknown'}
-                isFocused={isFocused}
-                totalColumns={visibleColumns}
-              />
-            );
-          })}
+          {focusedLoopIndex !== null && sortedLoops[focusedLoopIndex] ? (
+            // Focused mode: show only the focused loop at full width
+            (() => {
+              const focusedLoop = sortedLoops[focusedLoopIndex];
+              const task = state.tasks.find((t) => t.id === focusedLoop.taskIds[0]);
+              return (
+                <Column
+                  key={focusedLoop.loopId}
+                  loop={focusedLoop}
+                  taskTitle={task?.title || 'Unknown'}
+                  isFocused={true}
+                  totalColumns={1}
+                />
+              );
+            })()
+          ) : (
+            // Normal mode: show paginated columns
+            <>
+              {visibleLoops.map((loop) => {
+                const task = state.tasks.find((t) => t.id === loop.taskIds[0]);
+                return (
+                  <Column
+                    key={loop.loopId}
+                    loop={loop}
+                    taskTitle={task?.title || 'Unknown'}
+                    isFocused={false}
+                    totalColumns={visibleColumns}
+                  />
+                );
+              })}
 
-          {/* Empty columns if fewer visible loops than visible columns */}
-          {Array.from({ length: Math.max(0, visibleColumns - visibleLoops.length) }).map((_, i) => {
-            const emptyColumnWidth =
-              visibleColumns === 1 ? '100%' : `${Math.floor(100 / visibleColumns)}%`;
-            return (
-              <Box key={`empty-${i}`} borderStyle="single" width={emptyColumnWidth} height="100%">
-                <Box paddingX={1}>
-                  <Text dimColor>No active loop</Text>
-                </Box>
-              </Box>
-            );
-          })}
+              {/* Empty columns if fewer visible loops than visible columns */}
+              {Array.from({ length: Math.max(0, visibleColumns - visibleLoops.length) }).map(
+                (_, i) => {
+                  const emptyColumnWidth =
+                    visibleColumns === 1 ? '100%' : `${Math.floor(100 / visibleColumns)}%`;
+                  return (
+                    <Box
+                      key={`empty-${i}`}
+                      borderStyle="single"
+                      width={emptyColumnWidth}
+                      height="100%"
+                    >
+                      <Box paddingX={1}>
+                        <Text dimColor>No active loop</Text>
+                      </Box>
+                    </Box>
+                  );
+                }
+              )}
+            </>
+          )}
         </Box>
 
         {/* Task panel sidebar */}
@@ -128,12 +152,16 @@ export function Layout({
       <Box borderStyle="single" paddingX={1} justifyContent="space-between">
         <Text dimColor>
           [q]uit [p]ause [r]eview [t]asks [1-{visibleColumns}] focus
-          {isPaginated && ' [/] page'}
+          {isPaginated && focusedLoopIndex === null && ' [/] page'}
         </Text>
-        {isPaginated && (
-          <Text dimColor>
-            Page {safePage + 1}/{totalPages}
-          </Text>
+        {focusedLoopIndex !== null ? (
+          <Text dimColor>Focused #{focusedLoopIndex + 1} (press again to unfocus)</Text>
+        ) : (
+          isPaginated && (
+            <Text dimColor>
+              Page {safePage + 1}/{totalPages}
+            </Text>
+          )
         )}
       </Box>
     </Box>

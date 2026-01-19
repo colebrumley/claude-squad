@@ -149,13 +149,18 @@ export function App({ initialState, tracer }: AppProps) {
       }));
     }
     // Focus on visible column (1-N where N is visibleColumns)
-    // Key maps to global loop index based on current page
+    // When already focused, any number key unfocuses
     const keyNum = Number.parseInt(input, 10);
     if (keyNum >= 1 && keyNum <= visibleColumns) {
-      const globalIndex = currentPage * visibleColumns + (keyNum - 1);
-      // Only focus if the loop exists
-      if (globalIndex < totalLoops) {
-        setFocusedLoopIndex((prev) => (prev === globalIndex ? null : globalIndex));
+      if (focusedLoopIndex !== null) {
+        // Already focused - unfocus
+        setFocusedLoopIndex(null);
+      } else {
+        // Not focused - focus on the selected column
+        const globalIndex = currentPage * visibleColumns + (keyNum - 1);
+        if (globalIndex < totalLoops) {
+          setFocusedLoopIndex(globalIndex);
+        }
       }
     }
     // Page navigation with wrap-around
