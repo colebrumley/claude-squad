@@ -19,12 +19,53 @@ async function cleanWorktrees(runId?: string) {
     return;
   }
 
-  const dirs = readdirSync(worktreeDir);
+  // Get worktree list with branch info to properly filter by runId
+  // Branch format is: sq/{runId}/{loopId}
+  let worktreesToRemove: string[] = [];
 
-  for (const dir of dirs) {
-    if (runId && !dir.includes(runId)) continue;
+  if (runId) {
+    // Filter by branch name which contains the runId
+    try {
+      const output = execSync('git worktree list --porcelain', {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
 
-    const worktreePath = join(worktreeDir, dir);
+      // Parse porcelain output to find worktrees for this runId
+      // Format: "worktree /path\nHEAD sha\nbranch refs/heads/sq/runId/loopId\n\n"
+      const entries = output.split('\n\n').filter(Boolean);
+      for (const entry of entries) {
+        const lines = entry.split('\n');
+        const pathLine = lines.find((l) => l.startsWith('worktree '));
+        const branchLine = lines.find((l) => l.startsWith('branch '));
+
+        if (pathLine && branchLine) {
+          const path = pathLine.replace('worktree ', '');
+          const branch = branchLine.replace('branch ', '');
+          // Check if branch matches pattern: refs/heads/sq/{runId}/*
+          if (branch.includes(`/sq/${runId}/`) && path.includes(worktreeDir)) {
+            worktreesToRemove.push(path);
+          }
+        }
+      }
+    } catch {
+      // Fall back to directory listing if git command fails
+      const dirs = readdirSync(worktreeDir);
+      worktreesToRemove = dirs.map((d) => join(worktreeDir, d));
+    }
+  } else {
+    // No runId filter - remove all worktrees in the directory
+    const dirs = readdirSync(worktreeDir);
+    worktreesToRemove = dirs.map((d) => join(worktreeDir, d));
+  }
+
+  if (worktreesToRemove.length === 0) {
+    console.log(runId ? `No worktrees found for run ${runId}` : 'No worktrees to clean');
+    return;
+  }
+
+  for (const worktreePath of worktreesToRemove) {
+    const dir = worktreePath.split('/').pop() || worktreePath;
     try {
       execSync(`git worktree remove "${worktreePath}" --force`, { stdio: 'pipe' });
       console.log(`Removed worktree: ${dir}`);

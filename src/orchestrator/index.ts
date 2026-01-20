@@ -389,10 +389,16 @@ export async function runOrchestrator(
           throw new Error(`Task ${taskId} not found for conflict resolution`);
         }
 
+        // Find the loop to get worktree path and for status updates
+        const loop = state.activeLoops.find((l) => l.loopId === loopId);
+
+        // Use main repo directory (not stateDir) for conflict resolution
+        const repoDir = process.cwd();
+
         const result = await resolveConflict(
           task,
           conflictFiles,
-          state.stateDir,
+          repoDir,
           state.runId,
           state.stateDir,
           state.effort,
@@ -414,9 +420,37 @@ export async function runOrchestrator(
         // Remove the processed conflict from the queue
         state.pendingConflicts.shift();
 
-        if (!result.resolved) {
+        if (result.resolved) {
+          // Mark the loop as completed (the merge commit was done by the conflict agent)
+          if (loop) {
+            loop.status = 'completed';
+          }
+
+          // Add the task to completedTasks if not already there
+          if (!state.completedTasks.includes(taskId)) {
+            state.completedTasks.push(taskId);
+          }
+
+          // Clean up the worktree now that merge is complete
+          if (state.useWorktrees && state.baseBranch && loop?.worktreePath) {
+            const worktreeManager = new WorktreeManager({
+              repoDir,
+              worktreeBaseDir: join(state.stateDir, 'worktrees'),
+              baseBranch: state.baseBranch,
+              runId: state.runId,
+            });
+            try {
+              await worktreeManager.cleanup(loopId);
+            } catch (e) {
+              // Log but don't fail - worktree cleanup is best-effort
+              callbacks.tracer?.logError(
+                `Failed to cleanup worktree for loop ${loopId}: ${e}`,
+                'conflict'
+              );
+            }
+          }
+        } else {
           // Mark the loop as failed
-          const loop = state.activeLoops.find((l) => l.loopId === loopId);
           if (loop) {
             loop.status = 'failed';
           }
