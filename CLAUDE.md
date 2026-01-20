@@ -32,16 +32,19 @@ npm run typecheck     # Type check without emitting
 ./bin/sq --spec <path> --effort medium
 
 # Common options
-./bin/sq --spec <path> --dry-run       # Preview tasks and plan without executing
-./bin/sq --spec <path> --no-tui        # Disable TUI interface
-./bin/sq --spec <path> --no-worktrees  # Disable git worktree isolation
-./bin/sq --spec <path> --resume        # Resume interrupted run
-./bin/sq --spec <path> --reset         # Discard state, start fresh
-./bin/sq --spec <path> --debug         # Enable debug tracing to .sq/debug/<runId>/
+./bin/sq --spec <path> --dry-run           # Preview tasks and plan without executing
+./bin/sq --spec <path> --no-tui            # Disable TUI interface
+./bin/sq --spec <path> --no-worktrees      # Disable git worktree isolation
+./bin/sq --spec <path> --resume            # Resume interrupted run
+./bin/sq --spec <path> --reset             # Discard state, start fresh
+./bin/sq --spec <path> --debug             # Enable debug tracing to .sq/debug/<runId>/
+./bin/sq --spec <path> --max-loops <n>     # Max concurrent parallel loops (default: 4)
+./bin/sq --spec <path> --max-iterations <n> # Max iterations per loop (default: 20)
+./bin/sq --spec <path> --state-dir <path>  # Custom state directory (default: .sq)
 
 # Cleanup
-./bin/sq clean --all                   # Clean all sq worktrees
-./bin/sq clean --run <id>              # Clean worktrees for specific run
+./bin/sq clean --all                       # Clean all sq worktrees
+./bin/sq clean --run <id>                  # Clean worktrees for specific run
 ```
 
 ## Architecture

@@ -18,26 +18,27 @@ npm run typecheck     # Type check without emitting
 ## Usage
 
 ```bash
-# Basic run
-sq --spec feature.md --effort medium
+# Basic run (TUI enabled by default)
+./bin/sq --spec feature.md --effort medium
 
 # Preview without executing
-sq --spec feature.md --dry-run
+./bin/sq --spec feature.md --dry-run
 
-# With terminal UI
-sq --spec feature.md --tui
+# Without terminal UI
+./bin/sq --spec feature.md --no-tui
 
 # Resume interrupted run
-sq --spec feature.md --resume
+./bin/sq --spec feature.md --resume
 
 # Debug tracing
-sq --spec feature.md --debug
+./bin/sq --spec feature.md --debug
 
 # Cleanup
-sq clean --all
+./bin/sq clean --all
+./bin/sq clean --run <id>
 ```
 
-**Key flags**: `--effort low|medium|high|max`, `--no-worktrees`, `--reset`, `--max-loops <n>`
+**Key flags**: `--effort low|medium|high|max`, `--no-tui`, `--no-worktrees`, `--reset`, `--max-loops <n>`, `--max-iterations <n>`
 
 ## Architecture
 
