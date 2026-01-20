@@ -93,51 +93,58 @@ describe('MCP Server', () => {
   test('set_review_result stores structured review issues', () => {
     const db = getDatabase();
 
-    // Insert a structured review issue
+    // Insert a structured review issue into unified context table
     db.prepare(`
-      INSERT INTO review_issues (run_id, task_id, file, line, type, description, suggestion)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO context (run_id, type, content, task_id, file, line)
+      VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       'test-run',
+      'review_issue',
+      JSON.stringify({
+        issue_type: 'over-engineering',
+        description: 'Unnecessary abstraction',
+        suggestion: 'Simplify the code',
+      }),
       'task-1',
       'src/index.ts',
-      42,
-      'over-engineering',
-      'Unnecessary abstraction',
-      'Simplify the code'
+      42
     );
 
     const issues = db
-      .prepare('SELECT * FROM review_issues WHERE run_id = ?')
+      .prepare("SELECT * FROM context WHERE run_id = ? AND type = 'review_issue'")
       .all('test-run') as any[];
     assert.strictEqual(issues.length, 1);
     assert.strictEqual(issues[0].task_id, 'task-1');
     assert.strictEqual(issues[0].file, 'src/index.ts');
     assert.strictEqual(issues[0].line, 42);
-    assert.strictEqual(issues[0].type, 'over-engineering');
-    assert.strictEqual(issues[0].description, 'Unnecessary abstraction');
-    assert.strictEqual(issues[0].suggestion, 'Simplify the code');
+    const content = JSON.parse(issues[0].content);
+    assert.strictEqual(content.issue_type, 'over-engineering');
+    assert.strictEqual(content.description, 'Unnecessary abstraction');
+    assert.strictEqual(content.suggestion, 'Simplify the code');
   });
 
   test('set_review_result allows null line number', () => {
     const db = getDatabase();
 
-    // Insert a review issue without line number
+    // Insert a review issue without line number into unified context table
     db.prepare(`
-      INSERT INTO review_issues (run_id, task_id, file, line, type, description, suggestion)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO context (run_id, type, content, task_id, file, line)
+      VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       'test-run',
+      'review_issue',
+      JSON.stringify({
+        issue_type: 'dead-code',
+        description: 'Unused function',
+        suggestion: 'Remove the function',
+      }),
       'task-1',
       'src/utils.ts',
-      null,
-      'dead-code',
-      'Unused function',
-      'Remove the function'
+      null
     );
 
     const issues = db
-      .prepare('SELECT * FROM review_issues WHERE run_id = ?')
+      .prepare("SELECT * FROM context WHERE run_id = ? AND type = 'review_issue'")
       .all('test-run') as any[];
     assert.strictEqual(issues.length, 1);
     assert.strictEqual(issues[0].line, null);

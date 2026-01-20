@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS runs (
   use_worktrees INTEGER NOT NULL DEFAULT 1,
   interpreted_intent TEXT,
   intent_satisfied INTEGER,
-  was_empty_project INTEGER  -- NULL means not yet checked, 0 = false, 1 = true
+  was_empty_project INTEGER,  -- NULL means not yet checked, 0 = false, 1 = true
+  codebase_analysis TEXT      -- JSON blob for backwards compatibility (canonical source is context table)
 );
 
 -- Tasks table: enumerated tasks for a run
