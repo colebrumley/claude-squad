@@ -19,6 +19,20 @@ If you haven't run verification in this iteration, you cannot claim completion.
 | "Linter passed" | Linter ≠ tests |
 | "Similar code works" | Run YOUR code |
 
+## File Path Rules (CRITICAL)
+
+You are working in an **isolated worktree directory**. Files MUST be created here using RELATIVE paths.
+
+**NEVER use absolute paths like \`/tmp/...\` or \`/var/...\`** - these create files in the wrong location.
+
+| Wrong | Correct |
+|-------|---------|
+| \`/tmp/package.json\` | \`package.json\` |
+| \`/var/folders/.../src/index.ts\` | \`src/index.ts\` |
+| Any path starting with \`/\` | Relative path from pwd |
+
+If your worktree path contains "tmp" or "var", that's normal - still use RELATIVE paths.
+
 ## How to Work
 
 1. Read your scratchpad history to understand current state
