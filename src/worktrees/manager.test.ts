@@ -91,6 +91,36 @@ describe('WorktreeManager', () => {
       assert.strictEqual(result.status, 'conflict');
       assert.ok(result.conflictFiles.includes('conflict.txt'));
     });
+
+    it('detects untracked file conflicts', async () => {
+      // Create worktree
+      const { worktreePath } = await worktreeManager.create('loop-untracked');
+
+      // Make a change in the worktree (create a new file)
+      execSync(
+        `echo "new file content" > newfile.txt && git add newfile.txt && git commit -m "add newfile"`,
+        {
+          cwd: worktreePath,
+          stdio: 'pipe',
+        }
+      );
+
+      // Create an untracked file with the same name in main repo
+      execSync(`echo "untracked content" > newfile.txt`, {
+        cwd: repoDir,
+        stdio: 'pipe',
+      });
+
+      // Attempt merge - should detect untracked conflict
+      const result = await worktreeManager.merge('loop-untracked');
+
+      assert.strictEqual(result.status, 'untracked_conflict');
+      if (result.status === 'untracked_conflict') {
+        assert.ok(
+          result.untrackedFiles.length > 0 || result.untrackedFiles.includes('newfile.txt')
+        );
+      }
+    });
   });
 
   describe('cleanup()', () => {

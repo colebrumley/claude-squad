@@ -503,6 +503,27 @@ export async function executeBuildIteration(
               };
             }
 
+            if (mergeResult.status === 'untracked_conflict') {
+              // Untracked files in main repo would be overwritten by merge
+              // This is a configuration issue, not something the conflict agent can resolve
+              const fileList = mergeResult.untrackedFiles.join(', ');
+              const errorMsg = `Merge blocked: untracked files in main repo would be overwritten: ${fileList}. These files should be committed, gitignored, or removed before running sq.`;
+              loopManager.updateLoopStatus(loop.loopId, 'failed');
+              loop.stuckIndicators.lastError = errorMsg;
+              tracer?.logError(`Loop ${loop.loopId}: ${errorMsg}`, 'build');
+              return {
+                loopId: loop.loopId,
+                taskId: task.id,
+                completed: false,
+                costUsd,
+                untrackedConflict: {
+                  loopId: loop.loopId,
+                  taskId: task.id,
+                  untrackedFiles: mergeResult.untrackedFiles,
+                },
+              };
+            }
+
             // Cleanup worktree on successful merge
             await worktreeManager.cleanup(loop.loopId);
           } else {
