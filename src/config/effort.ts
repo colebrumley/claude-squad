@@ -45,8 +45,8 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     maxRevisions: 10,
     checkpointReviewInterval: null, // No checkpoint reviews
     maxRevisionAttempts: 2,
-    // Opus can cost $1-2 per iteration with extended thinking, so allow 2-3 iterations per loop
-    costLimits: { perLoopMaxUsd: 3.0, perPhaseMaxUsd: 8.0, perRunMaxUsd: 15.0 },
+    // Cost limits effectively disabled for development
+    costLimits: { perLoopMaxUsd: 1000, perPhaseMaxUsd: 1000, perRunMaxUsd: 10000 },
     models: {
       analyze: 'haiku',
       enumerate: 'haiku',
@@ -67,7 +67,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     maxRevisions: 8,
     checkpointReviewInterval: 5, // Every 5 iterations
     maxRevisionAttempts: 3,
-    costLimits: { perLoopMaxUsd: 2.0, perPhaseMaxUsd: 5.0, perRunMaxUsd: 15.0 },
+    costLimits: { perLoopMaxUsd: 1000, perPhaseMaxUsd: 1000, perRunMaxUsd: 10000 },
     models: {
       analyze: 'sonnet',
       enumerate: 'sonnet',
@@ -88,7 +88,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     maxRevisions: 5,
     checkpointReviewInterval: 3, // Every 3 iterations
     maxRevisionAttempts: 4,
-    costLimits: { perLoopMaxUsd: 5.0, perPhaseMaxUsd: 10.0, perRunMaxUsd: 30.0 },
+    costLimits: { perLoopMaxUsd: 1000, perPhaseMaxUsd: 1000, perRunMaxUsd: 10000 },
     models: {
       analyze: 'sonnet',
       enumerate: 'sonnet',
@@ -109,7 +109,7 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
     maxRevisions: 3,
     checkpointReviewInterval: 1, // Every iteration
     maxRevisionAttempts: 5,
-    costLimits: { perLoopMaxUsd: 10.0, perPhaseMaxUsd: 25.0, perRunMaxUsd: 100.0 },
+    costLimits: { perLoopMaxUsd: 1000, perPhaseMaxUsd: 1000, perRunMaxUsd: 10000 },
     models: {
       analyze: 'opus',
       enumerate: 'opus',
