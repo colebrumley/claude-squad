@@ -3,3 +3,4 @@ dist/
 .sq/
 *.log
 .worktrees/
+docs/plans/
