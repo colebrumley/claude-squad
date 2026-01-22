@@ -1,4 +1,5 @@
 import type { CostLimits, EffortLevel, ModelTier, Phase } from '../types/index.js';
+import type { PresetConfig } from './schema.js';
 
 // Model IDs for each tier
 const MODEL_IDS: Record<ModelTier, string> = {
@@ -10,6 +11,129 @@ const MODEL_IDS: Record<ModelTier, string> = {
 export function getModelId(tier: ModelTier): string {
   return MODEL_IDS[tier];
 }
+
+/**
+ * Default presets in the config file schema format.
+ * These are used when no ralphs.yaml config file is found.
+ */
+export const DEFAULT_PRESETS: Record<string, PresetConfig> = {
+  low: {
+    reviews: {
+      afterAnalyze: false,
+      afterEnumerate: false,
+      afterPlan: false,
+      interval: 10,
+      depth: 'shallow',
+      checkpointInterval: null,
+      maxRevisionAttempts: 2,
+    },
+    costs: {
+      perLoop: 1000,
+      perPhase: 1000,
+      perRun: 10000,
+    },
+    models: {
+      analyze: 'haiku',
+      enumerate: 'haiku',
+      plan: 'haiku',
+      build: 'opus',
+      review: 'haiku',
+      revise: 'haiku',
+      conflict: 'sonnet',
+    },
+    stuck: {
+      threshold: 5,
+      maxRevisions: 10,
+    },
+  },
+  medium: {
+    reviews: {
+      afterAnalyze: false,
+      afterEnumerate: false,
+      afterPlan: true,
+      interval: 5,
+      depth: 'standard',
+      checkpointInterval: 5,
+      maxRevisionAttempts: 3,
+    },
+    costs: {
+      perLoop: 1000,
+      perPhase: 1000,
+      perRun: 10000,
+    },
+    models: {
+      analyze: 'sonnet',
+      enumerate: 'sonnet',
+      plan: 'sonnet',
+      build: 'opus',
+      review: 'sonnet',
+      revise: 'sonnet',
+      conflict: 'sonnet',
+    },
+    stuck: {
+      threshold: 4,
+      maxRevisions: 8,
+    },
+  },
+  high: {
+    reviews: {
+      afterAnalyze: false,
+      afterEnumerate: true,
+      afterPlan: true,
+      interval: 3,
+      depth: 'deep',
+      checkpointInterval: 3,
+      maxRevisionAttempts: 4,
+    },
+    costs: {
+      perLoop: 1000,
+      perPhase: 1000,
+      perRun: 10000,
+    },
+    models: {
+      analyze: 'sonnet',
+      enumerate: 'sonnet',
+      plan: 'opus',
+      build: 'opus',
+      review: 'opus',
+      revise: 'sonnet',
+      conflict: 'opus',
+    },
+    stuck: {
+      threshold: 3,
+      maxRevisions: 5,
+    },
+  },
+  max: {
+    reviews: {
+      afterAnalyze: true,
+      afterEnumerate: true,
+      afterPlan: true,
+      interval: 1,
+      depth: 'comprehensive',
+      checkpointInterval: 1,
+      maxRevisionAttempts: 5,
+    },
+    costs: {
+      perLoop: 1000,
+      perPhase: 1000,
+      perRun: 10000,
+    },
+    models: {
+      analyze: 'opus',
+      enumerate: 'opus',
+      plan: 'opus',
+      build: 'opus',
+      review: 'opus',
+      revise: 'opus',
+      conflict: 'opus',
+    },
+    stuck: {
+      threshold: 2,
+      maxRevisions: 3,
+    },
+  },
+};
 
 // Phases that use models (excludes 'complete' which doesn't run an agent)
 type AgentPhase = Exclude<Phase, 'complete'>;
@@ -124,4 +248,27 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
 
 export function getEffortConfig(effort: EffortLevel): EffortConfig {
   return EFFORT_CONFIGS[effort];
+}
+
+/**
+ * Convert a PresetConfig (from config file) to EffortConfig (internal format).
+ */
+export function presetToEffortConfig(preset: PresetConfig): EffortConfig {
+  return {
+    reviewAfterAnalyze: preset.reviews.afterAnalyze,
+    reviewAfterEnumerate: preset.reviews.afterEnumerate,
+    reviewAfterPlan: preset.reviews.afterPlan,
+    reviewInterval: preset.reviews.interval,
+    reviewDepth: preset.reviews.depth,
+    checkpointReviewInterval: preset.reviews.checkpointInterval,
+    maxRevisionAttempts: preset.reviews.maxRevisionAttempts,
+    costLimits: {
+      perLoopMaxUsd: preset.costs.perLoop,
+      perPhaseMaxUsd: preset.costs.perPhase,
+      perRunMaxUsd: preset.costs.perRun,
+    },
+    models: preset.models,
+    stuckThreshold: preset.stuck.threshold,
+    maxRevisions: preset.stuck.maxRevisions,
+  };
 }

@@ -2,7 +2,8 @@ import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { getEffortConfig } from '../config/effort.js';
+import { type EffortConfig, getEffortConfig, presetToEffortConfig } from '../config/effort.js';
+import { getPreset, loadConfig } from '../config/loader.js';
 import { pruneContext, readContextFromDb } from '../db/context.js';
 import { closeDatabase, createDatabase, getDatabase } from '../db/index.js';
 import { SetCodebaseAnalysisSchema } from '../mcp/tools.js';
@@ -47,6 +48,7 @@ function batchExecute<T>(sql: string, items: T[], mapper: (item: T) => unknown[]
 export interface InitStateOptions {
   specPath: string;
   effort: EffortLevel;
+  effortConfig?: EffortConfig; // New: optional override from config file
   stateDir: string;
   maxLoops: number;
   maxIterations: number;
@@ -72,7 +74,7 @@ function isGitClean(): boolean {
 }
 
 export function initializeState(options: InitStateOptions): OrchestratorState {
-  const effortConfig = getEffortConfig(options.effort);
+  const effortConfig = options.effortConfig ?? getEffortConfig(options.effort);
   const baseBranch = getBaseBranch();
   const useWorktrees = options.useWorktrees !== false && baseBranch !== null;
 
@@ -611,8 +613,19 @@ export function loadState(stateDir: string): OrchestratorState | null {
   // Get completed task IDs
   const completedTasks = tasks.filter((t) => t.status === 'completed').map((t) => t.id);
 
-  // Get effort config for cost limits
-  const effortConfig = getEffortConfig(run.effort);
+  // Get effort config for cost limits - try loading from config file first
+  let effortConfig;
+  try {
+    const config = loadConfig();
+    const preset = getPreset(config, run.effort);
+    effortConfig = presetToEffortConfig(preset);
+  } catch (err) {
+    // Fall back to built-in defaults if config file has issues
+    console.warn(
+      `Warning: Could not load config file, using built-in defaults: ${(err as Error).message}`
+    );
+    effortConfig = getEffortConfig(run.effort);
+  }
 
   // Load phase costs from database
   const phaseCostRows = db
