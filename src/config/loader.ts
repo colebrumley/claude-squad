@@ -9,7 +9,7 @@ import { type ConfigFile, ConfigSchema, type PresetConfig } from './schema.js';
  *
  * Resolution order:
  * 1. If configPath specified, load that file (error if not found)
- * 2. Else if sq.yaml exists in projectRoot, load it
+ * 2. Else if ralphs.yaml exists in projectRoot, load it
  * 3. Else return built-in defaults
  *
  * @param configPath - Explicit path to config file (from --config flag)
@@ -25,7 +25,7 @@ export function loadConfig(configPath?: string, projectRoot: string = process.cw
   }
 
   // Check default location
-  const defaultPath = join(projectRoot, 'sq.yaml');
+  const defaultPath = join(projectRoot, 'ralphs.yaml');
   if (existsSync(defaultPath)) {
     return parseAndValidate(defaultPath);
   }

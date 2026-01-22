@@ -68,8 +68,8 @@ presets:
       assert.strictEqual(config.presets.fast.costs.perRun, 500);
     });
 
-    it('loads config from default sq.yaml location', () => {
-      const configPath = join(testDir, 'sq.yaml');
+    it('loads config from default ralphs.yaml location', () => {
+      const configPath = join(testDir, 'ralphs.yaml');
       writeFileSync(
         configPath,
         `

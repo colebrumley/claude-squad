@@ -22,7 +22,7 @@ describe('Config File Integration', () => {
   });
 
   it('full flow: load YAML → validate → convert to EffortConfig', () => {
-    const configPath = join(testDir, 'sq.yaml');
+    const configPath = join(testDir, 'ralphs.yaml');
     writeFileSync(
       configPath,
       `
@@ -71,7 +71,7 @@ presets:
   });
 
   it('custom preset can override built-in presets', () => {
-    const configPath = join(testDir, 'sq.yaml');
+    const configPath = join(testDir, 'ralphs.yaml');
     writeFileSync(
       configPath,
       `
