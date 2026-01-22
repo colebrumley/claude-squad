@@ -14,7 +14,7 @@ export function getModelId(tier: ModelTier): string {
 
 /**
  * Default presets in the config file schema format.
- * These are used when no sq.yaml config file is found.
+ * These are used when no ralphs.yaml config file is found.
  */
 export const DEFAULT_PRESETS: Record<string, PresetConfig> = {
   low: {

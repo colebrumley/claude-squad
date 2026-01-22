@@ -619,8 +619,11 @@ export function loadState(stateDir: string): OrchestratorState | null {
     const config = loadConfig();
     const preset = getPreset(config, run.effort);
     effortConfig = presetToEffortConfig(preset);
-  } catch {
+  } catch (err) {
     // Fall back to built-in defaults if config file has issues
+    console.warn(
+      `Warning: Could not load config file, using built-in defaults: ${(err as Error).message}`
+    );
     effortConfig = getEffortConfig(run.effort);
   }
 

@@ -156,9 +156,9 @@ The `--effort` flag controls orchestrator behavior:
 | **Stuck threshold** (errors) | 5 | 4 | 3 | 2 |
 | **Max revisions** (BUILD→REVIEW→REVISE) | 10 | 8 | 5 | 3 |
 | **Max revision attempts** (per-loop) | 2 | 3 | 4 | 5 |
-| **Per-loop max cost** | $1 | $2 | $5 | $10 |
-| **Per-phase max cost** | $2 | $5 | $10 | $25 |
-| **Per-run max cost** | $5 | $15 | $30 | $100 |
+| **Per-loop max cost** | $1000 | $1000 | $1000 | $1000 |
+| **Per-phase max cost** | $1000 | $1000 | $1000 | $1000 |
+| **Per-run max cost** | $10000 | $10000 | $10000 | $10000 |
 
 **Model tiers by phase** (low/medium/high/max):
 
