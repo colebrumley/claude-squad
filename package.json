@@ -1,12 +1,12 @@
 {
-  "name": "claude-squad",
+  "name": "gang-of-ralphs",
   "version": "0.0.2",
   "description": "AI orchestration system that coordinates multiple Claude Code agents to implement software from specifications",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "sq": "./bin/sq",
-    "sq-mcp": "./dist/mcp/index.js"
+    "ralphs": "./bin/ralphs",
+    "ralphs-mcp": "./dist/mcp/index.js"
   },
   "files": [
     "bin",
@@ -14,12 +14,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/colebrumley/claude-squad.git"
+    "url": "git+https://github.com/colebrumley/gang-of-ralphs.git"
   },
   "bugs": {
-    "url": "https://github.com/colebrumley/claude-squad/issues"
+    "url": "https://github.com/colebrumley/gang-of-ralphs/issues"
   },
-  "homepage": "https://github.com/colebrumley/claude-squad#readme",
+  "homepage": "https://github.com/colebrumley/gang-of-ralphs#readme",
   "engines": {
     "node": ">=20.0.0"
   },

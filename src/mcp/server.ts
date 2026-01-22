@@ -22,7 +22,7 @@ import {
 } from './tools.js';
 
 function createMcpLogger(dbPath: string, runId: string) {
-  // Derive debug dir from dbPath: .sq/state.db -> .sq/debug/<runId>/mcp-calls.jsonl
+  // Derive debug dir from dbPath: .ralphs/state.db -> .ralphs/debug/<runId>/mcp-calls.jsonl
   const stateDir = dirname(dbPath);
   const debugDir = join(stateDir, 'debug', runId);
   const logPath = join(debugDir, 'mcp-calls.jsonl');
@@ -77,7 +77,7 @@ export function createMCPServer(runId: string, dbPath: string) {
   const mcpLogger = createMcpLogger(dbPath, runId);
 
   const server = new Server(
-    { name: 'claude-squad', version: '1.0.0' },
+    { name: 'gang-of-ralphs', version: '1.0.0' },
     { capabilities: { tools: {} } }
   );
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Claude Squad is an AI orchestration system that coordinates multiple Claude Code agents to implement software from specifications. It breaks specs into tasks, plans execution order, spawns parallel agents in isolated git worktrees, and manages state across invocations.
+Gang of Ralphs is an AI orchestration system that coordinates multiple Claude Code agents to implement software from specifications. It breaks specs into tasks, plans execution order, spawns parallel agents in isolated git worktrees, and manages state across invocations.
 
 **Key design**: The orchestrator is stateless per invocation. It loads state from disk, executes one phase, saves state, and exits. An outer bash loop continuously restarts it until completion.
 
@@ -29,22 +29,22 @@ npm run typecheck     # Type check without emitting
 
 ```bash
 # Basic usage (TUI enabled by default)
-./bin/sq --spec <path> --effort medium
+./bin/ralphs --spec <path> --effort medium
 
 # Common options
-./bin/sq --spec <path> --dry-run           # Preview tasks and plan without executing
-./bin/sq --spec <path> --no-tui            # Disable TUI interface
-./bin/sq --spec <path> --no-worktrees      # Disable git worktree isolation
-./bin/sq --spec <path> --resume            # Resume interrupted run
-./bin/sq --spec <path> --reset             # Discard state, start fresh
-./bin/sq --spec <path> --debug             # Enable debug tracing to .sq/debug/<runId>/
-./bin/sq --spec <path> --max-loops <n>     # Max concurrent parallel loops (default: 4)
-./bin/sq --spec <path> --max-iterations <n> # Max iterations per loop (default: 50)
-./bin/sq --spec <path> --state-dir <path>  # Custom state directory (default: .sq)
+./bin/ralphs --spec <path> --dry-run           # Preview tasks and plan without executing
+./bin/ralphs --spec <path> --no-tui            # Disable TUI interface
+./bin/ralphs --spec <path> --no-worktrees      # Disable git worktree isolation
+./bin/ralphs --spec <path> --resume            # Resume interrupted run
+./bin/ralphs --spec <path> --reset             # Discard state, start fresh
+./bin/ralphs --spec <path> --debug             # Enable debug tracing to .ralphs/debug/<runId>/
+./bin/ralphs --spec <path> --max-loops <n>     # Max concurrent parallel loops (default: 4)
+./bin/ralphs --spec <path> --max-iterations <n> # Max iterations per loop (default: 50)
+./bin/ralphs --spec <path> --state-dir <path>  # Custom state directory (default: .ralphs)
 
 # Cleanup
-./bin/sq clean --all                       # Clean all sq worktrees
-./bin/sq clean --run <id>                  # Clean worktrees for specific run
+./bin/ralphs clean --all                       # Clean all ralphs worktrees
+./bin/ralphs clean --run <id>                  # Clean worktrees for specific run
 ```
 
 ## Architecture
@@ -120,7 +120,7 @@ Agents communicate via MCP tools instead of outputting JSON. This eliminates par
 
 By default, each parallel agent loop runs in an isolated git worktree to prevent conflicts:
 
-1. **Create**: `WorktreeManager.create(loopId)` creates branch `sq/<runId>/<loopId>` and worktree at `.sq/worktrees/<loopId>`
+1. **Create**: `WorktreeManager.create(loopId)` creates branch `ralphs/<runId>/<loopId>` and worktree at `.ralphs/worktrees/<loopId>`
 2. **Work**: Agent works in isolation, committing changes to its branch
 3. **Merge**: Auto-commits before merge with `git commit -m "auto-commit before merge"`, then `git merge --no-ff` for traceable history
 4. **Conflict**: Detects conflicts via `git diff --name-only --diff-filter=U`, spawns CONFLICT phase agent to resolve
@@ -176,7 +176,7 @@ Model IDs: haiku=`claude-haiku-4-20250514`, sonnet=`claude-sonnet-4-5-20250929`,
 
 ### State Persistence
 
-State is persisted to SQLite (`.sq/state.db`) with tables for:
+State is persisted to SQLite (`.ralphs/state.db`) with tables for:
 
 - `runs` - Run metadata, phase, effort level, cost tracking, interpreted_intent, intent_satisfied
 - `tasks` - Individual tasks with status, dependencies (JSON), estimated_iterations, assigned_loop_id
@@ -256,7 +256,7 @@ Core types in `src/types/`:
 
 ## Debug & Tracing
 
-Enabled with `--debug` flag, writes to `.sq/debug/<runId>/`:
+Enabled with `--debug` flag, writes to `.ralphs/debug/<runId>/`:
 - `agent-calls.jsonl` - All agent invocations with prompts, outputs, costs
 - `mcp-calls.jsonl` - All MCP tool calls with inputs, results, durations
 - `trace.jsonl` - Phase starts/completes, loop events, decisions, errors, state snapshots
@@ -274,7 +274,7 @@ npx tsx --test src/path/to/specific.test.ts
 
 Clean up orphaned worktrees and branches:
 ```bash
-./bin/sq clean --all
+./bin/ralphs clean --all
 git worktree prune
 ```
 
@@ -282,19 +282,19 @@ git worktree prune
 
 Reset state and start fresh:
 ```bash
-./bin/sq --spec <path> --reset
+./bin/ralphs --spec <path> --reset
 ```
 
 Or manually remove state directory:
 ```bash
-rm -rf .sq/
+rm -rf .ralphs/
 ```
 
 ### MCP server connection issues
 
 The MCP server runs on a Unix socket in the state directory. If connections fail:
-1. Check `.sq/` exists and is writable
-2. Ensure no zombie sq processes: `pkill -f "sq-mcp"`
+1. Check `.ralphs/` exists and is writable
+2. Ensure no zombie ralphs processes: `pkill -f "ralphs-mcp"`
 3. Try `--reset` to reinitialize state
 
 ### Agents appear stuck but are actually idle
@@ -303,4 +303,4 @@ Check idle timeout logs. Agents with no output for 5 minutes are marked stuck wi
 
 ### Review keeps failing
 
-Check review issues in `.sq/state.db` table `review_issues` for specific problems. Per-loop reviews track revision attempts - exceeding `maxRevisionAttempts` marks loop as stuck.
+Check review issues in `.ralphs/state.db` table `review_issues` for specific problems. Per-loop reviews track revision attempts - exceeding `maxRevisionAttempts` marks loop as stuck.

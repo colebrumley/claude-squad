@@ -14,7 +14,7 @@ describe('WorktreeManager', () => {
 
   beforeEach(() => {
     // Create temp directory with a git repo
-    testDir = mkdtempSync(join(tmpdir(), 'sq-worktree-test-'));
+    testDir = mkdtempSync(join(tmpdir(), 'ralphs-worktree-test-'));
     repoDir = join(testDir, 'repo');
     execSync(
       `mkdir -p ${repoDir} && cd ${repoDir} && git init && git commit --allow-empty -m "init"`,
@@ -23,7 +23,7 @@ describe('WorktreeManager', () => {
 
     worktreeManager = new WorktreeManager({
       repoDir,
-      worktreeBaseDir: join(repoDir, '.sq', 'worktrees'),
+      worktreeBaseDir: join(repoDir, '.ralphs', 'worktrees'),
       baseBranch: 'main',
       runId: 'test-run-123',
     });
@@ -38,7 +38,7 @@ describe('WorktreeManager', () => {
       const result = await worktreeManager.create('loop-abc');
 
       assert.ok(result.worktreePath.includes('loop-abc'));
-      assert.ok(result.branchName.includes('sq/test-run-123/loop-abc'));
+      assert.ok(result.branchName.includes('ralphs/test-run-123/loop-abc'));
     });
   });
 
@@ -152,7 +152,7 @@ describe('WorktreeManager', () => {
 
       await worktreeManager.cleanupAll();
 
-      const worktreeDir = join(repoDir, '.sq', 'worktrees');
+      const worktreeDir = join(repoDir, '.ralphs', 'worktrees');
       assert.ok(!existsSync(worktreeDir) || readdirSync(worktreeDir).length === 0);
     });
   });

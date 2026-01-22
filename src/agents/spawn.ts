@@ -17,21 +17,21 @@ interface AgentConfig {
   model?: string;
 }
 
-// MCP tools exposed by the sq-db server - pre-grant all permissions
+// MCP tools exposed by the ralphs-db server - pre-grant all permissions
 const MCP_TOOLS = [
-  'mcp__sq-db__write_task',
-  'mcp__sq-db__complete_task',
-  'mcp__sq-db__fail_task',
-  'mcp__sq-db__add_plan_group',
-  'mcp__sq-db__update_loop_status',
-  'mcp__sq-db__record_cost',
-  'mcp__sq-db__add_context',
-  'mcp__sq-db__set_review_result',
-  'mcp__sq-db__set_loop_review_result',
-  'mcp__sq-db__create_loop',
-  'mcp__sq-db__persist_loop_state',
-  'mcp__sq-db__record_phase_cost',
-  'mcp__sq-db__set_codebase_analysis',
+  'mcp__ralphs-db__write_task',
+  'mcp__ralphs-db__complete_task',
+  'mcp__ralphs-db__fail_task',
+  'mcp__ralphs-db__add_plan_group',
+  'mcp__ralphs-db__update_loop_status',
+  'mcp__ralphs-db__record_cost',
+  'mcp__ralphs-db__add_context',
+  'mcp__ralphs-db__set_review_result',
+  'mcp__ralphs-db__set_loop_review_result',
+  'mcp__ralphs-db__create_loop',
+  'mcp__ralphs-db__persist_loop_state',
+  'mcp__ralphs-db__record_phase_cost',
+  'mcp__ralphs-db__set_codebase_analysis',
 ];
 
 const PHASE_TOOLS: Record<Phase, string[]> = {
@@ -84,9 +84,9 @@ export function createAgentConfig(
   // Add MCP server for phases that write to the database
   if (usesMcp) {
     config.mcpServers = {
-      'sq-db': {
+      'ralphs-db': {
         command: 'node',
-        args: [MCP_SERVER_PATH, runId, dbPath || resolve(cwd, '.sq/state.db')],
+        args: [MCP_SERVER_PATH, runId, dbPath || resolve(cwd, '.ralphs/state.db')],
       },
     };
   }

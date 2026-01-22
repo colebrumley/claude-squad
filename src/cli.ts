@@ -34,20 +34,20 @@ export function createCLI(): Command {
   const program = new Command();
 
   program
-    .name('sq')
+    .name('ralphs')
     .version(getVersion(), '-v, --version', 'Show version number and git commit')
-    .description('Claude Squad - AI orchestrator with parallel agent loops')
+    .description('Gang of Ralphs - AI orchestrator with parallel agent loops')
     .requiredOption('--spec <path>', 'Path to spec file')
     .option('--effort <level>', 'Effort level: low|medium|high|max', 'medium')
     .option('--max-loops <n>', 'Max concurrent parallel loops', '4')
     .option('--max-iterations <n>', 'Max iterations per loop', '50')
-    .option('--state-dir <path>', 'State directory', '.sq')
+    .option('--state-dir <path>', 'State directory', '.ralphs')
     .option('--resume', 'Resume existing run', false)
     .option('--reset', 'Discard state and start fresh', false)
     .option('--dry-run', 'Show what would happen', false)
     .option('--no-tui', 'Disable TUI interface')
     .option('--no-worktrees', 'Disable git worktree isolation')
-    .option('--debug', 'Enable debug tracing to .sq/debug/<runId>/', false);
+    .option('--debug', 'Enable debug tracing to .ralphs/debug/<runId>/', false);
 
   return program;
 }

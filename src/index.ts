@@ -12,7 +12,7 @@ import { initializeState, loadState, saveRun } from './state/index.js';
 import type { OrchestratorState } from './types/index.js';
 
 async function cleanWorktrees(runId?: string) {
-  const worktreeDir = join(process.cwd(), '.sq', 'worktrees');
+  const worktreeDir = join(process.cwd(), '.ralphs', 'worktrees');
 
   if (!existsSync(worktreeDir)) {
     console.log('No worktrees to clean');
@@ -32,7 +32,7 @@ async function cleanWorktrees(runId?: string) {
       });
 
       // Parse porcelain output to find worktrees for this runId
-      // Format: "worktree /path\nHEAD sha\nbranch refs/heads/sq/runId/loopId\n\n"
+      // Format: "worktree /path\nHEAD sha\nbranch refs/heads/ralphs/runId/loopId\n\n"
       const entries = output.split('\n\n').filter(Boolean);
       for (const entry of entries) {
         const lines = entry.split('\n');
@@ -42,8 +42,8 @@ async function cleanWorktrees(runId?: string) {
         if (pathLine && branchLine) {
           const path = pathLine.replace('worktree ', '');
           const branch = branchLine.replace('branch ', '');
-          // Check if branch matches pattern: refs/heads/sq/{runId}/*
-          if (branch.includes(`/sq/${runId}/`) && path.includes(worktreeDir)) {
+          // Check if branch matches pattern: refs/heads/ralphs/{runId}/*
+          if (branch.includes(`/ralphs/${runId}/`) && path.includes(worktreeDir)) {
             worktreesToRemove.push(path);
           }
         }
@@ -149,18 +149,22 @@ async function main() {
       const { execSync } = await import('node:child_process');
       mkdirSync(stateDir, { recursive: true });
 
-      // Add .sq to .gitignore if not already present
+      // Add .ralphs to .gitignore if not already present
       const gitignorePath = join(process.cwd(), '.gitignore');
-      const sqPattern = '.sq/';
+      const ralphsPattern = '.ralphs/';
       let gitignoreModified = false;
       if (existsSync(gitignorePath)) {
         const content = readFileSync(gitignorePath, 'utf-8');
-        if (!content.split('\n').some((line) => line.trim() === '.sq' || line.trim() === '.sq/')) {
-          appendFileSync(gitignorePath, `\n${sqPattern}\n`);
+        if (
+          !content
+            .split('\n')
+            .some((line) => line.trim() === '.ralphs' || line.trim() === '.ralphs/')
+        ) {
+          appendFileSync(gitignorePath, `\n${ralphsPattern}\n`);
           gitignoreModified = true;
         }
       } else {
-        appendFileSync(gitignorePath, `${sqPattern}\n`);
+        appendFileSync(gitignorePath, `${ralphsPattern}\n`);
         gitignoreModified = true;
       }
 
@@ -168,7 +172,7 @@ async function main() {
       if (gitignoreModified) {
         try {
           execSync('git add .gitignore', { cwd: process.cwd(), stdio: 'pipe' });
-          execSync('git commit -m "chore: add .sq to .gitignore"', {
+          execSync('git commit -m "chore: add .ralphs to .gitignore"', {
             cwd: process.cwd(),
             stdio: 'pipe',
           });

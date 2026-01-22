@@ -36,7 +36,7 @@ export function Header({ state, activeLoopCount, lastActivityTime }: HeaderProps
   return (
     <Box borderStyle="single" paddingX={1} justifyContent="space-between">
       <Box>
-        <Text bold>Claude Squad</Text>
+        <Text bold>Gang of Ralphs</Text>
         <Text> | </Text>
         <Text>phase: </Text>
         <Text color="cyan">{state.phase}</Text>

@@ -1,6 +1,6 @@
 node_modules/
 dist/
-.sq/
+.ralphs/
 *.log
 .worktrees/
 docs/plans/

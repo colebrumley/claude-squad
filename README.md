@@ -1,4 +1,4 @@
-# Claude Squad
+# Gang of Ralphs
 
 AI orchestration system that coordinates multiple Claude Code agents to implement software from specs. Breaks work into tasks, plans execution order, spawns parallel agents in isolated git worktrees, and merges results.
 
@@ -30,23 +30,23 @@ npm run typecheck     # Type check without emitting
 
 ```bash
 # Basic run (TUI enabled by default)
-./bin/sq --spec feature.md --effort medium
+./bin/ralphs --spec feature.md --effort medium
 
 # Preview without executing
-./bin/sq --spec feature.md --dry-run
+./bin/ralphs --spec feature.md --dry-run
 
 # Without terminal UI
-./bin/sq --spec feature.md --no-tui
+./bin/ralphs --spec feature.md --no-tui
 
 # Resume interrupted run
-./bin/sq --spec feature.md --resume
+./bin/ralphs --spec feature.md --resume
 
 # Debug tracing
-./bin/sq --spec feature.md --debug
+./bin/ralphs --spec feature.md --debug
 
 # Cleanup
-./bin/sq clean --all
-./bin/sq clean --run <id>
+./bin/ralphs clean --all
+./bin/ralphs clean --run <id>
 ```
 
 **Key flags**: `--effort low|medium|high|max`, `--no-tui`, `--no-worktrees`, `--reset`, `--max-loops <n>`, `--max-iterations <n>`
@@ -57,9 +57,9 @@ See [CLAUDE.md](CLAUDE.md) for detailed documentation.
 
 **Phases**: ANALYZE → ENUMERATE → PLAN → BUILD → [CONFLICT] → [REVIEW] → [REVISE] → COMPLETE
 
-**State**: SQLite in `.sq/state.db` - tasks, loops, reviews, costs
+**State**: SQLite in `.ralphs/state.db` - tasks, loops, reviews, costs
 
-**Worktrees**: Each agent works in isolated git worktree (`sq/<runId>/<loopId>`)
+**Worktrees**: Each agent works in isolated git worktree (`ralphs/<runId>/<loopId>`)
 
 ## License
 
