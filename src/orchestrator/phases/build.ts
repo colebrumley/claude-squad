@@ -47,7 +47,6 @@ interface PendingToolCall {
   name: string;
   toolId: string;
   inputJson: string;
-  startTime: number;
 }
 
 /**
@@ -374,7 +373,6 @@ export async function executeBuildIteration(
                     name: toolInfo.toolName,
                     toolId: toolInfo.toolId,
                     inputJson: '',
-                    startTime: Date.now(),
                   });
                 }
               }
