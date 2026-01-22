@@ -39,6 +39,7 @@ export function createCLI(): Command {
     .description('Gang of Ralphs - AI orchestrator with parallel agent loops')
     .requiredOption('--spec <path>', 'Path to spec file')
     .option('--effort <level>', 'Effort level: low|medium|high|max', 'medium')
+    .option('--config <path>', 'Path to config file (default: sq.yaml)')
     .option('--max-loops <n>', 'Max concurrent parallel loops', '4')
     .option('--max-iterations <n>', 'Max iterations per loop', '50')
     .option('--state-dir <path>', 'State directory', '.ralphs')
