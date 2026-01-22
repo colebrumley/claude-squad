@@ -2,7 +2,8 @@ import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { type EffortConfig, getEffortConfig } from '../config/effort.js';
+import { type EffortConfig, getEffortConfig, presetToEffortConfig } from '../config/effort.js';
+import { getPreset, loadConfig } from '../config/loader.js';
 import { pruneContext, readContextFromDb } from '../db/context.js';
 import { closeDatabase, createDatabase, getDatabase } from '../db/index.js';
 import { SetCodebaseAnalysisSchema } from '../mcp/tools.js';
@@ -612,8 +613,16 @@ export function loadState(stateDir: string): OrchestratorState | null {
   // Get completed task IDs
   const completedTasks = tasks.filter((t) => t.status === 'completed').map((t) => t.id);
 
-  // Get effort config for cost limits
-  const effortConfig = getEffortConfig(run.effort);
+  // Get effort config for cost limits - try loading from config file first
+  let effortConfig;
+  try {
+    const config = loadConfig();
+    const preset = getPreset(config, run.effort);
+    effortConfig = presetToEffortConfig(preset);
+  } catch {
+    // Fall back to built-in defaults if config file has issues
+    effortConfig = getEffortConfig(run.effort);
+  }
 
   // Load phase costs from database
   const phaseCostRows = db
