@@ -249,3 +249,26 @@ const EFFORT_CONFIGS: Record<EffortLevel, EffortConfig> = {
 export function getEffortConfig(effort: EffortLevel): EffortConfig {
   return EFFORT_CONFIGS[effort];
 }
+
+/**
+ * Convert a PresetConfig (from config file) to EffortConfig (internal format).
+ */
+export function presetToEffortConfig(preset: PresetConfig): EffortConfig {
+  return {
+    reviewAfterAnalyze: preset.reviews.afterAnalyze,
+    reviewAfterEnumerate: preset.reviews.afterEnumerate,
+    reviewAfterPlan: preset.reviews.afterPlan,
+    reviewInterval: preset.reviews.interval,
+    reviewDepth: preset.reviews.depth,
+    checkpointReviewInterval: preset.reviews.checkpointInterval,
+    maxRevisionAttempts: preset.reviews.maxRevisionAttempts,
+    costLimits: {
+      perLoopMaxUsd: preset.costs.perLoop,
+      perPhaseMaxUsd: preset.costs.perPhase,
+      perRunMaxUsd: preset.costs.perRun,
+    },
+    models: preset.models,
+    stuckThreshold: preset.stuck.threshold,
+    maxRevisions: preset.stuck.maxRevisions,
+  };
+}
