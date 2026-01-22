@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { getEffortConfig } from '../config/effort.js';
+import { type EffortConfig, getEffortConfig } from '../config/effort.js';
 import { pruneContext, readContextFromDb } from '../db/context.js';
 import { closeDatabase, createDatabase, getDatabase } from '../db/index.js';
 import { SetCodebaseAnalysisSchema } from '../mcp/tools.js';
@@ -47,6 +47,7 @@ function batchExecute<T>(sql: string, items: T[], mapper: (item: T) => unknown[]
 export interface InitStateOptions {
   specPath: string;
   effort: EffortLevel;
+  effortConfig?: EffortConfig; // New: optional override from config file
   stateDir: string;
   maxLoops: number;
   maxIterations: number;
@@ -72,7 +73,7 @@ function isGitClean(): boolean {
 }
 
 export function initializeState(options: InitStateOptions): OrchestratorState {
-  const effortConfig = getEffortConfig(options.effort);
+  const effortConfig = options.effortConfig ?? getEffortConfig(options.effort);
   const baseBranch = getBaseBranch();
   const useWorktrees = options.useWorktrees !== false && baseBranch !== null;
 

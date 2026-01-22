@@ -4,6 +4,8 @@ import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createCLI } from './cli.js';
+import { presetToEffortConfig } from './config/effort.js';
+import { getPreset, loadConfig } from './config/loader.js';
 import { closeDatabase, createDatabase } from './db/index.js';
 import { createTracer } from './debug/index.js';
 import { getExitCode, runOrchestrator } from './orchestrator/index.js';
@@ -98,6 +100,17 @@ async function main() {
   program.parse();
   const opts = program.opts();
 
+  // Load config file and get preset
+  let effortConfig;
+  try {
+    const config = loadConfig(opts.config);
+    const preset = getPreset(config, opts.effort);
+    effortConfig = presetToEffortConfig(preset);
+  } catch (err) {
+    console.error(`Error: ${(err as Error).message}`);
+    process.exit(1);
+  }
+
   // Validate spec file exists
   const specPath = resolve(opts.spec);
   try {
@@ -135,6 +148,7 @@ async function main() {
     state = initializeState({
       specPath,
       effort: opts.effort,
+      effortConfig,
       stateDir,
       maxLoops: Number.parseInt(opts.maxLoops, 10),
       maxIterations: Number.parseInt(opts.maxIterations, 10),
